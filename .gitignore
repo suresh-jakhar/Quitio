@@ -7,6 +7,7 @@ claude-plan
 
 # Backend
 backend/node_modules/
+backend/dist/
 backend/npm-debug.log
 backend/.DS_Store
 
