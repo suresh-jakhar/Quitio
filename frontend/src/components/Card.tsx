@@ -1,4 +1,5 @@
 import Tag from './Tag';
+import SourceLink from './SourceLink';
 import SocialLinkPreview from './cardPreviews/SocialLinkPreview';
 import PdfPreview from './cardPreviews/PdfPreview';
 import DocxPreview from './cardPreviews/DocxPreview';
@@ -114,6 +115,12 @@ export default function Card({
             <div className="card-detail-meta-label">Created</div>
             <div className="card-detail-meta-value">{formatDate(cardData.created_at)}</div>
           </div>
+          {cardData.updated_at && cardData.created_at !== cardData.updated_at && (
+            <div className="card-detail-meta-item">
+              <div className="card-detail-meta-label">Updated</div>
+              <div className="card-detail-meta-value">{formatDate(cardData.updated_at)}</div>
+            </div>
+          )}
           {Object.entries(cardData.metadata || {}).length > 0 && (
             <div className="card-detail-meta-item">
               <div className="card-detail-meta-label">Metadata</div>
@@ -122,6 +129,11 @@ export default function Card({
               </div>
             </div>
           )}
+        </div>
+
+        {/* Source Link - Phase 8 */}
+        <div style={{ marginBottom: 'var(--space-lg)' }}>
+          <SourceLink cardData={cardData} />
         </div>
 
         {(cardData.metadata?.og_image || cardData.metadata?.file_name) && (
