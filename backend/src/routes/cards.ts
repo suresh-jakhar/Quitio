@@ -6,6 +6,79 @@ import { validateCard, validateCardUpdate } from '../utils/validators';
 const router = Router();
 
 /**
+ * POST /cards/ingest/social-link/preview - Get metadata preview (Phase 10)
+ */
+router.post('/ingest/social-link/preview', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { url } = req.body;
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({
+        code: 400,
+        message: 'URL is required',
+      });
+    }
+
+    const { extractSocialMetadata } = await import('../extractors/socialLinkExtractor');
+    const metadata = await extractSocialMetadata(url);
+
+    res.status(200).json(metadata);
+  } catch (err: any) {
+    if (err.message?.includes('Failed to fetch URL') || err.message?.includes('timeout')) {
+      return res.status(400).json({
+        code: 400,
+        message: 'Failed to fetch URL. Please check the URL and try again.',
+      });
+    }
+    next(err);
+  }
+});
+
+/**
+ * POST /cards/ingest/social-link - Create card from social link (Phase 10)
+ */
+router.post('/ingest/social-link', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { url, tags } = req.body;
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({
+        code: 400,
+        message: 'URL is required and must be a string',
+      });
+    }
+
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return res.status(400).json({
+        code: 400,
+        message: 'URL must start with http:// or https://',
+      });
+    }
+
+    const card = await cardService.createSocialLinkCard(req.userId!, {
+      url,
+      tags: Array.isArray(tags) ? tags : [],
+    });
+
+    // Fetch tags for response
+    const cardTags = await cardService.getCardTags(card.id, req.userId!);
+
+    res.status(201).json({
+      ...card,
+      tags: cardTags,
+    });
+  } catch (err: any) {
+    if (err.message?.includes('Failed to fetch URL') || err.message?.includes('timeout')) {
+      return res.status(400).json({
+        code: 400,
+        message: 'Failed to fetch URL. Please check the URL and try again.',
+      });
+    }
+    next(err);
+  }
+});
+
+/**
  * GET /cards - Get all user's cards (paginated)
  */
 router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {

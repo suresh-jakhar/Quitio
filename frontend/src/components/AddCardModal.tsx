@@ -29,11 +29,8 @@ export default function AddCardModal({
     setError('');
 
     try {
-      await api.post('/cards', {
-        title: data.url,
-        content_type: 'social_link',
-        raw_content: data.url,
-        metadata: {},
+      await api.post('/cards/ingest/social-link', {
+        url: data.url,
         tags: data.tags,
       });
 

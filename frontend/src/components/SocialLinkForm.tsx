@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Input from './Input';
 import Button from './Button';
+import MetadataPreview from './MetadataPreview';
+import useSocialLinkMetadata from '../hooks/useSocialLinkMetadata';
 
 interface SocialLinkFormProps {
   onSubmit: (data: { url: string; tags: string[] }) => Promise<void>;
@@ -14,6 +16,17 @@ export default function SocialLinkForm({
   const [url, setUrl] = useState('');
   const [tags, setTags] = useState('');
   const [error, setError] = useState('');
+  const { metadata, loading: metadataLoading, error: metadataError, fetchMetadata } = useSocialLinkMetadata();
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (url) {
+        fetchMetadata(url);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [url, fetchMetadata]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +34,11 @@ export default function SocialLinkForm({
 
     if (!url.trim()) {
       setError('URL is required');
+      return;
+    }
+
+    if (!metadata) {
+      setError('Please wait for preview to load');
       return;
     }
 
@@ -44,6 +62,12 @@ export default function SocialLinkForm({
         </div>
       )}
 
+      {metadataError && (
+        <div className="form-error">
+          {metadataError}
+        </div>
+      )}
+
       <div className="form-group">
         <label>URL</label>
         <Input
@@ -54,6 +78,13 @@ export default function SocialLinkForm({
           disabled={isLoading}
         />
       </div>
+
+      {url && (
+        <MetadataPreview
+          metadata={metadata || undefined}
+          isLoading={metadataLoading}
+        />
+      )}
 
       <div className="form-group">
         <label>Tags (comma-separated)</label>
@@ -70,7 +101,7 @@ export default function SocialLinkForm({
         <Button
           label={isLoading ? 'Adding...' : 'Add Card'}
           variant="primary"
-          disabled={isLoading || !url.trim()}
+          disabled={isLoading || !url.trim() || !metadata || metadataLoading}
         />
       </div>
     </form>

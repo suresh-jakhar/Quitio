@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import pool from '../utils/db';
 import { AuthRequest } from '../middleware/auth';
+import { extractSocialMetadata } from '../extractors/socialLinkExtractor';
 
 export interface Card {
   id: string;
@@ -221,4 +222,33 @@ export const getCardTags = async (cardId: string, userId: string): Promise<any[]
   );
 
   return result.rows;
+};
+
+/**
+ * Create card from social link (Phase 10)
+ */
+export const createSocialLinkCard = async (
+  userId: string,
+  data: {
+    url: string;
+    tags?: string[];
+  }
+): Promise<Card> => {
+  const metadata = await extractSocialMetadata(data.url);
+
+  const card = await createCard(userId, {
+    title: metadata.title || 'Untitled',
+    content_type: 'social_link',
+    raw_content: data.url,
+    metadata: {
+      url: data.url,
+      platform: metadata.platform,
+      og_title: metadata.og_title,
+      og_description: metadata.og_description,
+      og_image: metadata.og_image,
+    },
+    tags: data.tags,
+  });
+
+  return card;
 };
