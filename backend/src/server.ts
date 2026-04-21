@@ -3,6 +3,7 @@ import cors from 'cors';
 import config from './config';
 import errorHandler from './middleware/errorHandler';
 import authRoutes from './routes/auth';
+import database from './utils/database';
 
 const app: Express = express();
 
@@ -22,8 +23,31 @@ app.use(errorHandler);
 
 // Start server
 const PORT = config.PORT;
-app.listen(PORT, () => {
-  console.log(`Backend server running on port ${PORT}`);
-});
+
+// Initialize database and start server
+(async () => {
+  try {
+    // Run migrations
+    await database.runPendingMigrations();
+
+    // Health check
+    const isHealthy = await database.healthCheck();
+    if (!isHealthy) {
+      throw new Error('Database health check failed');
+    }
+
+    // Show stats
+    await database.getStats();
+
+    // Start server
+    app.listen(PORT, () => {
+      console.log(`🚀 Backend server running on http://localhost:${PORT}`);
+      console.log(`Environment: ${config.NODE_ENV}\n`);
+    });
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+})();
 
 export default app;
