@@ -26,15 +26,56 @@ export function detectPlatform(url: string): string {
   return 'generic';
 }
 
+function normalizeUrl(inputUrl: string): string {
+  return new URL(inputUrl.trim()).toString();
+}
+
+function buildFallbackMetadata(url: string, platform: string): SocialMetadata {
+  return {
+    url,
+    platform,
+    title: platform.charAt(0).toUpperCase() + platform.slice(1),
+  };
+}
+
+async function fetchYouTubeMetadata(url: string): Promise<SocialMetadata> {
+  const response = await httpClient.get('https://www.youtube.com/oembed', {
+    params: {
+      url,
+      format: 'json',
+    },
+  });
+
+  return {
+    url,
+    platform: 'youtube',
+    og_title: response.data.title,
+    og_description: response.data.author_name,
+    og_image: response.data.thumbnail_url,
+    title: response.data.title || 'Untitled',
+  };
+}
+
 export async function extractSocialMetadata(url: string): Promise<SocialMetadata> {
   try {
-    const response = await httpClient.get(url);
+    const normalizedUrl = normalizeUrl(url);
+    const platform = detectPlatform(normalizedUrl);
+
+    if (platform === 'youtube') {
+      try {
+        return await fetchYouTubeMetadata(normalizedUrl);
+      } catch (error) {
+        console.warn('YouTube oEmbed fetch failed, falling back to generic metadata:', error);
+        return buildFallbackMetadata(normalizedUrl, platform);
+      }
+    }
+
+    const response = await httpClient.get(normalizedUrl);
     const html = response.data;
     const metadata = extractMetadata(html);
-    const platform = detectPlatform(url);
 
     return {
-      url,
+      url: normalizedUrl,
       platform,
       og_title: metadata.og_title,
       og_description: metadata.og_description,
@@ -43,6 +84,11 @@ export async function extractSocialMetadata(url: string): Promise<SocialMetadata
     };
   } catch (error: any) {
     console.error('Failed to extract metadata:', error);
-    throw error;
+    if (error instanceof TypeError || String(error?.message || '').includes('Invalid URL')) {
+      throw error;
+    }
+
+    const platform = detectPlatform(url);
+    return buildFallbackMetadata(url, platform);
   }
 }

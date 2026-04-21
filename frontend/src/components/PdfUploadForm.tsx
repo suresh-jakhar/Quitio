@@ -60,7 +60,7 @@ export default function PdfUploadForm({
           type="text"
           placeholder="tech, article, research"
           value={tags}
-          onChange={(e) => setTags(e.target.value)}
+          onChange={setTags}
           disabled={isLoading}
         />
       </div>
@@ -69,6 +69,7 @@ export default function PdfUploadForm({
         <Button
           label={isLoading ? 'Adding...' : 'Add Card'}
           variant="primary"
+          type="submit"
           disabled={isLoading || !file}
         />
       </div>

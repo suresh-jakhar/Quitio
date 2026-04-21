@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from './Button';
+import { LogoIcon, HomeIcon, TagIcon, SearchIcon, ChatIcon } from './icons';
 
 interface LayoutProps {
   children: ReactNode;
@@ -25,7 +26,8 @@ export default function Layout({ children, title }: LayoutProps): JSX.Element {
       {/* Header */}
       <header className="header">
         <div className="header-logo" onClick={() => navigate('/')}>
-          📚 QUITIO
+          <LogoIcon size={32} />
+          <span>QUITIO</span>
         </div>
         <div className="header-content">
           <h2 style={{ margin: 0, fontSize: 'var(--font-size-lg)', fontWeight: 'var(--font-weight-medium)' }}>
@@ -58,21 +60,21 @@ export default function Layout({ children, title }: LayoutProps): JSX.Element {
             <div
               className="sidebar-item active"
               onClick={() => navigate('/')}
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
-              🏠 Home
+              <HomeIcon /> Home
             </div>
           </div>
           <div className="sidebar-section">
             <div className="sidebar-title">Coming Soon</div>
-            <div className="sidebar-item" style={{ opacity: 0.5, cursor: 'default' }}>
-              🏷️ Tags
+            <div className="sidebar-item" style={{ opacity: 0.5, cursor: 'default', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <TagIcon /> Tags
             </div>
-            <div className="sidebar-item" style={{ opacity: 0.5, cursor: 'default' }}>
-              🔍 Search
+            <div className="sidebar-item" style={{ opacity: 0.5, cursor: 'default', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <SearchIcon /> Search
             </div>
-            <div className="sidebar-item" style={{ opacity: 0.5, cursor: 'default' }}>
-              💬 Chat
+            <div className="sidebar-item" style={{ opacity: 0.5, cursor: 'default', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <ChatIcon /> Chat
             </div>
           </div>
         </aside>

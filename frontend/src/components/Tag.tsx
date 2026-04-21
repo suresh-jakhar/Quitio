@@ -1,3 +1,5 @@
+import { XIcon } from './icons';
+
 interface TagProps {
   label: string;
   onClick?: () => void;
@@ -23,7 +25,7 @@ export default function Tag({
           e.stopPropagation();
           onRemove();
         }}>
-          ×
+          <XIcon />
         </span>
       )}
     </span>

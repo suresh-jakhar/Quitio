@@ -6,6 +6,7 @@ import Pagination from '../components/Pagination';
 import Button from '../components/Button';
 import Spinner from '../components/Spinner';
 import AddCardModal from '../components/AddCardModal';
+import { PlusIcon, XIcon } from '../components/icons';
 import useCards, { CardData } from '../hooks/useCards';
 
 export default function HomePage(): JSX.Element {
@@ -39,7 +40,7 @@ export default function HomePage(): JSX.Element {
         >
           <h1>My Cards</h1>
           <Button
-            label="Add Card"
+            label={<PlusIcon />}
             variant="primary"
             onClick={() => setIsAddModalOpen(true)}
           />
@@ -107,8 +108,9 @@ export default function HomePage(): JSX.Element {
                 <button
                   className="modal-close"
                   onClick={() => setSelectedCard(null)}
+                  aria-label="Close modal"
                 >
-                  ×
+                  <XIcon />
                 </button>
               </div>
               <div className="modal-body">

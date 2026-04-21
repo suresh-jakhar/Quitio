@@ -4,9 +4,9 @@ interface CardTypeSelectorProps {
 }
 
 const cardTypes = [
-  { id: 'social_link', label: 'Social Link' },
-  { id: 'pdf', label: 'PDF' },
-  { id: 'docx', label: 'Word Document' },
+  { id: 'social_link', label: 'Social Link', enabled: true },
+  { id: 'pdf', label: 'PDF (Phase 11)', enabled: false },
+  { id: 'docx', label: 'Word Document (Phase 12)', enabled: false },
 ];
 
 export default function CardTypeSelector({
@@ -22,7 +22,7 @@ export default function CardTypeSelector({
         className="type-select"
       >
         {cardTypes.map((type) => (
-          <option key={type.id} value={type.id}>
+          <option key={type.id} value={type.id} disabled={!type.enabled}>
             {type.label}
           </option>
         ))}

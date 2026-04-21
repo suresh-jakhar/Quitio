@@ -1,5 +1,6 @@
 import Button from './Button';
 import Card from './Card';
+import { GridIcon, ListIcon } from './icons';
 import { CardData } from '../hooks/useCards';
 
 interface CardGridProps {
@@ -22,12 +23,12 @@ export default function CardGrid({
       <div className="card-grid-controls">
         <div className="view-toggle">
           <Button
-            label="Grid"
+            label={<GridIcon />}
             variant={viewMode === 'grid' ? 'primary' : 'secondary'}
             onClick={() => onViewModeChange?.('grid')}
           />
           <Button
-            label="List"
+            label={<ListIcon />}
             variant={viewMode === 'list' ? 'primary' : 'secondary'}
             onClick={() => onViewModeChange?.('list')}
           />

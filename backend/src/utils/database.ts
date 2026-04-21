@@ -11,7 +11,7 @@ class Database {
   private migrationsDir: string;
 
   constructor() {
-    this.migrationsDir = path.join(__dirname, '../migrations');
+    this.migrationsDir = path.join(__dirname, '../../migrations');
   }
 
   /**
@@ -107,6 +107,10 @@ class Database {
 
       await client.query('BEGIN');
       await client.query(sql);
+      await client.query(
+        'INSERT INTO migrations (name) VALUES ($1) ON CONFLICT (name) DO NOTHING',
+        [migrationFile]
+      );
       await client.query('COMMIT');
 
       console.log(`✓ Completed: ${migrationFile}\n`);

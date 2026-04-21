@@ -3,6 +3,7 @@ import SourceLink from './SourceLink';
 import SocialLinkPreview from './cardPreviews/SocialLinkPreview';
 import PdfPreview from './cardPreviews/PdfPreview';
 import DocxPreview from './cardPreviews/DocxPreview';
+import { LinkIcon, DocumentIcon, FileIcon } from './icons';
 
 interface CardTag {
   id: string;
@@ -28,14 +29,14 @@ interface CardProps {
   isListView?: boolean;
 }
 
-const getContentTypeEmoji = (contentType: string): string => {
-  const emojiMap: Record<string, string> = {
-    social_link: '🔗',
-    pdf: '📄',
-    docx: '📝',
-    doc: '📝',
+const getContentTypeIcon = (contentType: string): JSX.Element => {
+  const iconMap: Record<string, JSX.Element> = {
+    social_link: <LinkIcon />,
+    pdf: <FileIcon />,
+    docx: <DocumentIcon />,
+    doc: <DocumentIcon />,
   };
-  return emojiMap[contentType] || '📌';
+  return iconMap[contentType] || <DocumentIcon />;
 };
 
 const getContentTypeLabel = (contentType: string): string => {
@@ -72,7 +73,7 @@ const PreviewRenderer: React.FC<{ contentType: string; metadata: Record<string, 
           backgroundColor: 'var(--color-light-gray)',
           color: 'var(--color-text-secondary)',
         }}>
-          {getContentTypeEmoji(contentType)}
+          {getContentTypeIcon(contentType)}
         </div>
       );
   }
@@ -101,7 +102,7 @@ export default function Card({
       <div className="card-component card-detail-view">
         <div className="card-detail-header">
           <div className="card-type-badge">
-            {getContentTypeEmoji(cardData.content_type)} {getContentTypeLabel(cardData.content_type)}
+            {getContentTypeIcon(cardData.content_type)} {getContentTypeLabel(cardData.content_type)}
           </div>
           <div className="card-detail-title">{cardData.title}</div>
         </div>
@@ -230,7 +231,7 @@ export default function Card({
 
       <div className="card-content">
         <div className="card-type-badge">
-          {getContentTypeEmoji(cardData.content_type)} {getContentTypeLabel(cardData.content_type)}
+          {getContentTypeIcon(cardData.content_type)} {getContentTypeLabel(cardData.content_type)}
         </div>
         <div className="card-title">{cardData.title}</div>
         <div className="card-meta">{formatDate(cardData.created_at)}</div>

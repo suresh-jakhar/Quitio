@@ -18,11 +18,34 @@ export default function SocialLinkForm({
   const [error, setError] = useState('');
   const { metadata, loading: metadataLoading, error: metadataError, fetchMetadata } = useSocialLinkMetadata();
 
+  const isValidUrl = (value: string): boolean => {
+    const trimmed = value.trim();
+    if (!/^https?:\/\//i.test(trimmed)) {
+      return false;
+    }
+
+    try {
+      new URL(trimmed);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   useEffect(() => {
+    const trimmed = url.trim();
+
+    if (!trimmed) {
+      fetchMetadata('');
+      return;
+    }
+
+    if (!isValidUrl(trimmed)) {
+      return;
+    }
+
     const timer = setTimeout(() => {
-      if (url) {
-        fetchMetadata(url);
-      }
+      fetchMetadata(trimmed);
     }, 500);
 
     return () => clearTimeout(timer);
@@ -32,13 +55,8 @@ export default function SocialLinkForm({
     e.preventDefault();
     setError('');
 
-    if (!url.trim()) {
-      setError('URL is required');
-      return;
-    }
-
-    if (!metadata) {
-      setError('Please wait for preview to load');
+    if (!isValidUrl(url)) {
+      setError('URL is required and must start with http:// or https://');
       return;
     }
 
@@ -74,7 +92,7 @@ export default function SocialLinkForm({
           type="url"
           placeholder="https://..."
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={setUrl}
           disabled={isLoading}
         />
       </div>
@@ -92,7 +110,7 @@ export default function SocialLinkForm({
           type="text"
           placeholder="tech, article, research"
           value={tags}
-          onChange={(e) => setTags(e.target.value)}
+          onChange={setTags}
           disabled={isLoading}
         />
       </div>
@@ -101,7 +119,8 @@ export default function SocialLinkForm({
         <Button
           label={isLoading ? 'Adding...' : 'Add Card'}
           variant="primary"
-          disabled={isLoading || !url.trim() || !metadata || metadataLoading}
+          type="submit"
+          disabled={isLoading || !isValidUrl(url)}
         />
       </div>
     </form>

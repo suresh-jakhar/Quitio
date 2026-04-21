@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 
 interface InputProps {
-  type?: 'text' | 'email' | 'password' | 'number' | 'textarea';
+  type?: 'text' | 'email' | 'password' | 'number' | 'url' | 'textarea';
   placeholder?: string;
   value?: string | number;
   onChange?: (value: string) => void;

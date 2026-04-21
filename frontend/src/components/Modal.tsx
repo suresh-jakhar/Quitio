@@ -1,3 +1,5 @@
+import { XIcon } from './icons';
+
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -20,8 +22,8 @@ export default function Modal({
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2 className="modal-title">{title}</h2>
-          <button className="modal-close" onClick={onClose}>
-            ×
+          <button className="modal-close" onClick={onClose} aria-label="Close modal">
+            <XIcon />
           </button>
         </div>
         <div className="modal-body">{children}</div>
