@@ -1,5 +1,5 @@
 #!/usr/bin/env ts-node
-import database from './utils/database';
+import database from '../utils/database';
 
 const args = process.argv.slice(2);
 const command = args[0];

@@ -2,7 +2,10 @@ import express, { Express } from 'express';
 import cors from 'cors';
 import config from './config';
 import errorHandler from './middleware/errorHandler';
+import authMiddleware from './middleware/auth';
 import authRoutes from './routes/auth';
+import cardRoutes from './routes/cards';
+import tagRoutes from './routes/tags';
 import database from './utils/database';
 
 const app: Express = express();
@@ -17,6 +20,10 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/auth', authRoutes);
+
+// Protected routes (require authentication)
+app.use('/cards', authMiddleware, cardRoutes);
+app.use('/tags', authMiddleware, tagRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);

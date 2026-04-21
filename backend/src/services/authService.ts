@@ -77,7 +77,7 @@ export const generateJWT = (userId: string): string => {
   return jwt.sign(
     { userId },
     config.JWT_SECRET,
-    { expiresIn: config.JWT_EXPIRATION }
+    { expiresIn: config.JWT_EXPIRATION } as any
   );
 };
 
