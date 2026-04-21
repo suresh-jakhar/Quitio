@@ -451,7 +451,86 @@
   opacity: 1;
 }
 
-/* ===== Card Grid Wrapper (Phase 7) ===== */
+/* ===== Forms (Phase 9) ===== */
+.add-card-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.form-group label {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.form-group input[type='text'],
+.form-group input[type='url'],
+.form-group input[type='file'] {
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+}
+
+.form-group input[type='text']:focus,
+.form-group input[type='url']:focus,
+.form-group input[type='file']:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.form-error {
+  padding: var(--space-md);
+  background-color: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: var(--radius-lg);
+  color: #dc2626;
+  font-size: var(--font-size-sm);
+}
+
+.form-actions {
+  display: flex;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+/* ===== Card Type Selector ===== */
+.card-type-selector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.selector-label {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.type-select {
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  background-color: var(--color-white);
+  cursor: pointer;
+}
+
+.type-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
 .card-grid-wrapper {
   width: 100%;
 }

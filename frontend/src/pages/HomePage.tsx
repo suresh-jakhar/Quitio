@@ -5,11 +5,13 @@ import CardGrid from '../components/CardGrid';
 import Pagination from '../components/Pagination';
 import Button from '../components/Button';
 import Spinner from '../components/Spinner';
+import AddCardModal from '../components/AddCardModal';
 import useCards, { CardData } from '../hooks/useCards';
 
 export default function HomePage(): JSX.Element {
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const { cards, loading, error, page, totalPages, hasMore, loadMore, refetch } = useCards(20);
 
   const handleCardClick = (card: CardData) => {
@@ -18,7 +20,10 @@ export default function HomePage(): JSX.Element {
 
   const handleTagClick = (tagId: string) => {
     console.log('Tag clicked:', tagId);
-    // TODO: Implement filtering by tag (Phase 15)
+  };
+
+  const handleCardAdded = async () => {
+    await refetch();
   };
 
   return (
@@ -33,10 +38,13 @@ export default function HomePage(): JSX.Element {
           }}
         >
           <h1>My Cards</h1>
-          <Button label="Add Card" variant="primary" disabled />
+          <Button
+            label="Add Card"
+            variant="primary"
+            onClick={() => setIsAddModalOpen(true)}
+          />
         </div>
 
-        {/* Error State */}
         {error && (
           <div
             style={{
@@ -58,14 +66,12 @@ export default function HomePage(): JSX.Element {
           </div>
         )}
 
-        {/* Loading State */}
         {loading && cards.length === 0 ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 'var(--space-3xl)' }}>
             <Spinner />
           </div>
         ) : (
           <>
-            {/* Card Grid with View Toggle */}
             <CardGrid
               cards={cards}
               viewMode={viewMode}
@@ -74,7 +80,6 @@ export default function HomePage(): JSX.Element {
               onViewModeChange={setViewMode}
             />
 
-            {/* Pagination */}
             {cards.length > 0 && (
               <Pagination
                 page={page}
@@ -88,7 +93,6 @@ export default function HomePage(): JSX.Element {
           </>
         )}
 
-        {/* Detail Modal */}
         {selectedCard && (
           <div
             className="modal-overlay"
@@ -117,6 +121,12 @@ export default function HomePage(): JSX.Element {
             </div>
           </div>
         )}
+
+        <AddCardModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          onCardAdded={handleCardAdded}
+        />
       </div>
     </Layout>
   );
