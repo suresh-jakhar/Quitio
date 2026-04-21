@@ -71,3 +71,48 @@ dist/
 build/
 *.tsbuildinfo
 
+# Testing
+coverage/
+.nyc_output/
+.jest/
+
+# Cache
+.eslintcache
+.prettierignore
+tsbuildcache/
+
+# Documentation & Reports (Development only - not needed for production)
+README.md
+SETUP.md
+SETUP_GUIDE.md
+SETUP_COMPLETE.md
+*_SETUP.md
+*_GUIDE.md
+*_README.md
+ENV_SETUP_GUIDE.md
+TECH_STACK_GUIDE.md
+FOLDER_STRUCTURE.md
+
+# Reports & Summaries (Development only)
+*_REPORT.md
+*_SUMMARY.md
+SECURITY_INCIDENT_REPORT.md
+PHASE_*.md
+DATABASE.md
+DATABASE_SETUP.md
+
+# Planning & Development Documentation
+claude-plan/
+.claude/
+PLAN.md
+TODO.md
+*_TODO.md
+ROADMAP.md
+
+# Temporary & Backup Files
+*.bak
+*.backup
+*.tmp
+temp/
+.temp/
+*~
