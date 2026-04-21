@@ -1,35 +1,73 @@
 claude-plan
 
-# Environment variables
+# Environment variables - NEVER commit these
 .env
 .env.local
 .env.*.local
+.env.production.local
+.env.development.local
+.env.test.local
+
+# Secrets
+*.key
+*.pem
+*.p12
+.aws/credentials
 
 # Backend
 backend/node_modules/
 backend/dist/
+backend/build/
 backend/npm-debug.log
 backend/.DS_Store
+backend/.env
+backend/.env.local
+backend/.env.*.local
 
 # ML Service
 ml-service/venv/
+ml-service/env/
 ml-service/__pycache__/
 ml-service/*.egg-info/
 ml-service/dist/
+ml-service/build/
 ml-service/.pytest_cache/
 ml-service/.DS_Store
+ml-service/.env
+ml-service/.env.local
+ml-service/.env.*.local
 
 # Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/build/
 frontend/.DS_Store
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-workspace
+*.sublime-project
 
 # OS
 .DS_Store
 Thumbs.db
+*.log
+logs/
+
+# Dependencies
+node_modules/
+venv/
+env/
+.venv/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+

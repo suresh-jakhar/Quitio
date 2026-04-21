@@ -106,8 +106,9 @@ npm run db:health
 # Set PostgreSQL path
 $env:Path += ";C:\Program Files\PostgreSQL\18\bin"
 
-# Connect to database
-psql "postgresql://neondb_owner:npg_2E9RThJyPkcv@ep-purple-block-ama695iw-pooler.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+# Connect to database (use credentials from your .env file)
+# Example: psql "postgresql://username:password@host:5432/database?sslmode=require"
+psql $env:DATABASE_URL
 
 # Common queries
 \dt                    # List tables
