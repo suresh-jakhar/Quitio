@@ -16,7 +16,7 @@ class VectorStore:
                 register_vector(conn)
                 with conn.cursor() as cur:
                     cur.execute(
-                        "UPDATE cards SET embedding = %s WHERE id = %s",
+                        "UPDATE cards SET embedding = %s::vector WHERE id = %s",
                         (embedding, card_id)
                     )
                 conn.commit()
@@ -40,7 +40,7 @@ class VectorStore:
                 with conn.cursor() as cur:
                     # Base query
                     sql = """
-                        SELECT c.id, c.title, c.content_type, 1 - (c.embedding <=> %s) as similarity
+                        SELECT c.id, c.title, c.content_type, 1 - (c.embedding <=> %s::vector) as similarity
                         FROM cards c
                         WHERE c.user_id = %s AND c.embedding IS NOT NULL
                     """
@@ -59,7 +59,7 @@ class VectorStore:
                         params.append(tags)
 
                     # Sorting and limit
-                    sql += " ORDER BY c.embedding <=> %s LIMIT %s"
+                    sql += " ORDER BY c.embedding <=> %s::vector LIMIT %s"
                     params.extend([embedding, limit])
 
                     cur.execute(sql, params)
@@ -80,17 +80,27 @@ class VectorStore:
             raise
 
     def init_index(self):
-        """Ensure pgvector extension and index are present."""
+        """Ensure pgvector extension, column, and index are present."""
         try:
             with self.db_service.get_connection() as conn:
                 with conn.cursor() as cur:
+                    # 1. Enable extension
                     cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
+                    
+                    # 2. Add embedding column if it doesn't exist
+                    # (384 is the dimension for all-MiniLM-L6-v2)
+                    cur.execute("""
+                        ALTER TABLE cards 
+                        ADD COLUMN IF NOT EXISTS embedding vector(384)
+                    """)
+                    
+                    # 3. Create IVFFlat index for faster retrieval
                     cur.execute("""
                         CREATE INDEX IF NOT EXISTS idx_cards_embedding ON cards 
                         USING ivfflat (embedding vector_cosine_ops) 
                         WITH (lists = 100)
                     """)
                 conn.commit()
-            logger.info("pgvector index initialized successfully.")
+            logger.info("pgvector database structure initialized successfully.")
         except Exception as e:
-            logger.error(f"Error initializing pgvector index: {e}")
+            logger.error(f"Error initializing pgvector structure: {e}")

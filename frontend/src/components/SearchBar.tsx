@@ -6,6 +6,8 @@ interface SearchBarProps {
   onClear: () => void;
   placeholder?: string;
   isSearchActive?: boolean;
+  isSemantic?: boolean;
+  onToggleSemantic?: () => void;
 }
 
 const containerStyle: CSSProperties = {
@@ -43,6 +45,8 @@ export default function SearchBar({
   onClear,
   placeholder = 'Search cards by title or tag…',
   isSearchActive = false,
+  isSemantic = false,
+  onToggleSemantic,
 }: SearchBarProps) {
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') onClear();
@@ -92,7 +96,7 @@ export default function SearchBar({
           title="Clear search"
           style={{
             position: 'absolute',
-            right: '10px',
+            right: onToggleSemantic ? '45px' : '10px',
             background: 'none',
             border: 'none',
             cursor: 'pointer',
@@ -107,6 +111,32 @@ export default function SearchBar({
           onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
         >
           ✕
+        </button>
+      )}
+
+      {/* Semantic Search Toggle (Brain icon) */}
+      {onToggleSemantic && (
+        <button
+          id="semantic-toggle"
+          onClick={onToggleSemantic}
+          title={isSemantic ? "Semantic Search Active (Smart)" : "Keyword Search Active (Exact)"}
+          style={{
+            position: 'absolute',
+            right: '10px',
+            background: isSemantic ? 'var(--color-primary-light)' : 'none',
+            border: `1px solid ${isSemantic ? 'var(--color-primary)' : 'transparent'}`,
+            borderRadius: 'var(--radius-md)',
+            cursor: 'pointer',
+            fontSize: '18px',
+            padding: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s',
+            opacity: isSemantic ? 1 : 0.6,
+          }}
+        >
+          🧠
         </button>
       )}
     </div>

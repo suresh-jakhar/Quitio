@@ -1,6 +1,7 @@
 import { Router, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import pool from '../utils/db';
+import { vectorSearch } from '../services/mlService';
 
 const router = Router();
 
@@ -112,10 +113,57 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
       })
     );
 
+    // --- Phase 22 Integration: Semantic Search fallback/mode ---
+    const semanticParam = req.query.semantic === 'true';
+    
+    if (semanticParam) {
+      try {
+        console.log(`[DEBUG-BACKEND] Calling ML service for query: "${q}"`);
+        const mlRes = await vectorSearch(q, req.userId!, 20, tagIds.length > 0 ? tagIds : undefined);
+        console.log(`[DEBUG-BACKEND] ML service returned ${mlRes.results.length} raw matches.`);
+        
+        // We need to fetch full card details for the results returned by ML service
+        const semanticResults = await Promise.all(
+          mlRes.results.map(async (res: any) => {
+            const cardRes = await pool.query(
+              'SELECT * FROM cards WHERE id = $1 AND user_id = $2',
+              [res.id, req.userId!]
+            );
+            if (cardRes.rows.length === 0) {
+              console.log(`[DEBUG-BACKEND] Card ID ${res.id} from ML service not found in DB!`);
+              return null;
+            }
+            const card = cardRes.rows[0];
+            const tagsRes = await pool.query(
+              `SELECT t.id, t.name FROM tags t
+               JOIN card_tags ct ON t.id = ct.tag_id
+               WHERE ct.card_id = $1 AND t.user_id = $2`,
+              [card.id, req.userId!]
+            );
+            return { ...card, tags: tagsRes.rows, similarity: res.similarity };
+          })
+        );
+
+        const filteredResults = semanticResults.filter(Boolean);
+        console.log(`[DEBUG-BACKEND] Final semantic results count: ${filteredResults.length}`);
+
+        return res.status(200).json({
+          results: filteredResults,
+          query: q,
+          count: filteredResults.length,
+          type: 'semantic'
+        });
+      } catch (err: any) {
+        console.error(`[Search] Semantic search failed, falling back to keyword: ${err.message}`);
+        // Fall through to keyword results
+      }
+    }
+
     res.status(200).json({
       results: resultsWithTags,
       query: q,
       count: resultsWithTags.length,
+      type: 'keyword'
     });
   } catch (err) {
     next(err);

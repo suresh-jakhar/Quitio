@@ -47,9 +47,12 @@ async def vector_search(
     similar cards in the database.
     """
     try:
+        logger.info(f"[DEBUG-ML] Incoming semantic search for user {request.user_id}: \"{request.query}\"")
+        
         # 1. Embed the query text
         query_embedding = embed_service.embed_text(request.query)
-        
+        logger.info(f"[DEBUG-ML] Query embedded successfully.")
+
         # 2. Search for similar cards in the vector store
         results = vector_store.find_similar_cards(
             embedding=query_embedding,
@@ -57,6 +60,7 @@ async def vector_search(
             tags=request.tags,
             limit=request.top_k
         )
+        logger.info(f"[DEBUG-ML] Found {len(results)} matches in database.")
         
         return SearchResponse(
             query=request.query,

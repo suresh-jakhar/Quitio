@@ -36,7 +36,12 @@ export default function SocialLinkPreview({
       style={{ cursor: url !== '#' ? 'pointer' : 'default' }}
     >
       {og_image ? (
-        <img src={og_image} alt={og_title} className="social-thumbnail" />
+        <img 
+          src={og_image} 
+          alt={og_title} 
+          className="social-thumbnail" 
+          referrerPolicy="no-referrer"
+        />
       ) : (
         <div style={{
           width: '100%',

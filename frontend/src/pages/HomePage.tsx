@@ -41,6 +41,8 @@ export default function HomePage() {
     loading: searchLoading,
     error: searchError,
     isSearchActive,
+    isSemantic,
+    setIsSemantic,
     handleQueryChange,
     clearSearch,
   } = useSearch(selectedTagIds.length > 0 ? selectedTagIds : null, filterMode);
@@ -112,6 +114,8 @@ export default function HomePage() {
               onChange={handleQueryChange}
               onClear={clearSearch}
               isSearchActive={isSearchActive}
+              isSemantic={isSemantic}
+              onToggleSemantic={() => setIsSemantic(!isSemantic)}
             />
           </div>
           <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>

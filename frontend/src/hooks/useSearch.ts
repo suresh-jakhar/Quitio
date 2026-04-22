@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import api from '../utils/api';
 import { CardData } from './useCards';
 import { FilterMode } from './useCardFilter';
@@ -9,6 +9,8 @@ interface UseSearchResult {
   loading: boolean;
   error: string | null;
   isSearchActive: boolean;
+  isSemantic: boolean;
+  setIsSemantic: (s: boolean) => void;
   handleQueryChange: (q: string) => void;
   clearSearch: () => void;
 }
@@ -29,6 +31,7 @@ export default function useSearch(
   const [results, setResults] = useState<CardData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSemantic, setIsSemantic] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const runSearch = useCallback(
@@ -43,9 +46,13 @@ export default function useSearch(
         setLoading(true);
         setError(null);
 
-        const params: Record<string, string> = {
+        const params: any = {
           q: q.trim(),
         };
+
+        if (isSemantic) {
+          params.semantic = 'true';
+        }
 
         // Pass active tag filter so search is scoped within selected tags
         if (tagIds && tagIds.length > 0) {
@@ -53,7 +60,9 @@ export default function useSearch(
           params.mode = filterMode ?? 'OR';
         }
 
+        console.log('[DEBUG] Search Request Params:', params);
         const response = await api.get('/search', { params });
+        console.log('[DEBUG] Search Response Results:', response.data.results);
         setResults(response.data.results ?? []);
       } catch (err: any) {
         setError(err.response?.data?.message || err.message || 'Search failed');
@@ -64,7 +73,7 @@ export default function useSearch(
     },
     // Re-create only when tag filter changes (ensures stale closure is avoided)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(tagIds), filterMode]
+    [JSON.stringify(tagIds), filterMode, isSemantic]
   );
 
   const handleQueryChange = useCallback(
@@ -88,6 +97,13 @@ export default function useSearch(
     [runSearch]
   );
 
+  // Automatically re-trigger search when semantic mode is toggled
+  useEffect(() => {
+    if (query.trim()) {
+      runSearch(query);
+    }
+  }, [isSemantic, runSearch]); // runSearch is already stabilized by useCallback
+
   const clearSearch = useCallback(() => {
     setQuery('');
     setResults([]);
@@ -101,6 +117,8 @@ export default function useSearch(
     loading,
     error,
     isSearchActive: query.trim().length > 0,
+    isSemantic,
+    setIsSemantic,
     handleQueryChange,
     clearSearch,
   };

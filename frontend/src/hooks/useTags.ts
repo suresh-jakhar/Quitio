@@ -40,9 +40,10 @@ export default function useTags() {
       return newTag;
     } catch (err: any) {
       if (err.response?.status === 409) {
-         // Tag already exists, we could fetch it or just return existing from state if we have it
-         const existing = tags.find(t => t.name === name);
-         if (existing) return existing;
+        // Tag already exists. Refresh the list for the UI, 
+        // and return a placeholder so the caller can proceed.
+        fetchTags(); 
+        return { id: 'existing', name }; 
       }
       throw new Error(err.response?.data?.message || err.message || 'Failed to create tag');
     }

@@ -6,6 +6,7 @@ import { extractFromPdf } from '../extractors/pdfExtractor';
 import { extractFromDocx } from '../extractors/docxExtractor';
 import { cleanupTempFile } from '../extractors/storageService';
 import { extractText } from './textExtractionService';
+import { generateAndStoreEmbedding } from './mlService';
 
 export interface Card {
   id: string;
@@ -154,6 +155,12 @@ export const createCard = async (userId: string, data: CreateCardDTO): Promise<C
   // Add tags if provided
   if (data.tags && data.tags.length > 0) {
     await addTagsToCard(userId, cardId, data.tags);
+  }
+
+  // Trigger embedding generation in background
+  if (card.extracted_text) {
+    // We don't await this to keep response time fast
+    generateAndStoreEmbedding(cardId, card.extracted_text);
   }
 
   return card;
