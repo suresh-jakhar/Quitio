@@ -5,6 +5,7 @@ import { extractSocialMetadata } from '../extractors/socialLinkExtractor';
 import { extractFromPdf } from '../extractors/pdfExtractor';
 import { extractFromDocx } from '../extractors/docxExtractor';
 import { cleanupTempFile } from '../extractors/storageService';
+import { extractText } from './textExtractionService';
 
 export interface Card {
   id: string;
@@ -313,7 +314,7 @@ export const createPdfCard = async (
     title: extraction.metadata.title || data.originalName || 'Untitled PDF',
     content_type: 'pdf',
     raw_content: data.originalName,
-    extracted_text: extraction.text,
+    extracted_text: extraction.text.replace(/\s+/g, ' ').trim(), // Clean text
     metadata: {
       page_count: extraction.page_count,
       author: extraction.metadata.author,
@@ -350,7 +351,7 @@ export const createDocxCard = async (
     title: extraction.metadata.title || data.originalName || 'Untitled DOCX',
     content_type: 'docx',
     raw_content: data.originalName,
-    extracted_text: extraction.text,
+    extracted_text: extraction.text.replace(/\s+/g, ' ').trim(), // Clean text
     metadata: {
       word_count: extraction.word_count,
       file_size: extraction.metadata.file_size,
@@ -378,6 +379,7 @@ export const createSocialLinkCard = async (
     title: metadata.title || 'Untitled',
     content_type: 'social_link',
     raw_content: data.url,
+    extracted_text: `${metadata.title || ''}\n${metadata.og_description || ''}`.replace(/\s+/g, ' ').trim(),
     metadata: {
       url: data.url,
       platform: metadata.platform,
