@@ -3,12 +3,15 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 import logging
 from services.embedding_service import EmbeddingService
+from services.vector_store import VectorStore
+from services.db_service import DBService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Singleton-like dependency for the service
+# Singleton-like dependencies
 _embedding_service = None
+_vector_store = None
 
 def get_embedding_service():
     global _embedding_service
@@ -16,11 +19,22 @@ def get_embedding_service():
         _embedding_service = EmbeddingService()
     return _embedding_service
 
+def get_vector_store():
+    global _vector_store
+    if _vector_store is None:
+        db_service = DBService()
+        _vector_store = VectorStore(db_service)
+    return _vector_store
+
 class EmbedRequest(BaseModel):
     text: str = Field(..., description="The text to generate an embedding for.")
 
 class EmbedBatchRequest(BaseModel):
     texts: List[str] = Field(..., description="A list of texts to generate embeddings for.")
+
+class StoreEmbeddingRequest(BaseModel):
+    card_id: str = Field(..., description="The UUID of the card.")
+    embedding: List[float] = Field(..., description="The embedding vector to store.")
 
 class EmbedResponse(BaseModel):
     embedding: List[float]
@@ -80,3 +94,18 @@ async def embed_batch(
     except Exception as e:
         logger.error(f"Batch embedding endpoint error: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate batch embeddings.")
+
+@router.post("/store", status_code=200)
+async def store_embedding(
+    request: StoreEmbeddingRequest,
+    vector_store: VectorStore = Depends(get_vector_store)
+):
+    """
+    Store a generated embedding in the database for a specific card.
+    """
+    try:
+        vector_store.store_embedding(request.card_id, request.embedding)
+        return {"status": "success", "message": f"Embedding stored for card {request.card_id}"}
+    except Exception as e:
+        logger.error(f"Store embedding endpoint error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

@@ -6,6 +6,8 @@ import logging
 import config
 from utils.logging import setup_logging
 from services.model_loader import ModelLoader
+from services.vector_store import VectorStore
+from services.db_service import DBService
 from routers import health, embed, search, graph, rag
 
 # Setup logging
@@ -21,6 +23,11 @@ async def lifespan(app: FastAPI):
     try:
         loader = ModelLoader(model_name=config.MODEL_NAME, device=config.MODEL_DEVICE)
         loader.load_model()
+        
+        # Initialize vector index
+        db_service = DBService()
+        vector_store = VectorStore(db_service)
+        vector_store.init_index()
     except Exception as e:
         logger.error(f"Critical error during startup: {e}")
         # In production, you might want to exit here
