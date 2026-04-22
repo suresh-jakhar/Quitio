@@ -127,6 +127,38 @@ class VectorStore:
             logger.error(f"Error performing BM25 search: {e}")
             raise
 
+    def get_user_cards(self, user_id: str) -> List[dict]:
+        """
+        Fetch all cards for a user with their embeddings and tags.
+        Used for Knowledge Graph construction.
+        """
+        try:
+            with self.db_service.get_connection() as conn:
+                register_vector(conn)
+                with conn.cursor() as cur:
+                    sql = """
+                        SELECT c.id, c.embedding, array_agg(t.name) as tags
+                        FROM cards c
+                        LEFT JOIN card_tags ct ON c.id = ct.card_id
+                        LEFT JOIN tags t ON ct.tag_id = t.id
+                        WHERE c.user_id = %s AND c.embedding IS NOT NULL
+                        GROUP BY c.id
+                    """
+                    cur.execute(sql, (user_id,))
+                    rows = cur.fetchall()
+                    
+                    results = []
+                    for row in rows:
+                        results.append({
+                            "id": str(row[0]),
+                            "embedding": row[1],
+                            "tags": [tag for tag in row[2] if tag is not None]
+                        })
+            return results
+        except Exception as e:
+            logger.error(f"Error fetching user cards for graph: {e}")
+            raise
+
     def init_index(self):
         """Ensure pgvector extension, column, and indexes are present."""
         try:

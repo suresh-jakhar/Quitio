@@ -1,0 +1,85 @@
+import logging
+from typing import List, Tuple
+from services.db_service import DBService
+
+logger = logging.getLogger(__name__)
+
+class GraphStore:
+    def __init__(self, db_service: DBService):
+        self.db_service = db_service
+
+    def add_edge(self, source_id: str, target_id: str, 
+                 similarity: float, reason: str):
+        """
+        Add or update an edge in the graph_edges table.
+        """
+        try:
+            with self.db_service.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO graph_edges 
+                        (source_card_id, target_card_id, similarity_score, reason)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (source_card_id, target_card_id) 
+                        DO UPDATE SET similarity_score = %s, reason = %s, created_at = NOW()
+                        """,
+                        (source_id, target_id, similarity, reason, similarity, reason)
+                    )
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Error adding edge {source_id} -> {target_id}: {e}")
+            raise
+
+    def delete_user_edges(self, user_id: str):
+        """
+        Delete all edges where the source card belongs to the specified user.
+        """
+        try:
+            with self.db_service.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        DELETE FROM graph_edges
+                        WHERE source_card_id IN (
+                            SELECT id FROM cards WHERE user_id = %s
+                        )
+                        """,
+                        (user_id,)
+                    )
+                conn.commit()
+            logger.info(f"Deleted old graph edges for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error deleting edges for user {user_id}: {e}")
+            raise
+
+    def get_neighbors(self, card_id: str, limit: int = 10) -> List[dict]:
+        """
+        Fetch the most related cards for a given card ID.
+        """
+        try:
+            with self.db_service.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT target_card_id, similarity_score, reason
+                        FROM graph_edges
+                        WHERE source_card_id = %s
+                        ORDER BY similarity_score DESC
+                        LIMIT %s
+                        """,
+                        (card_id, limit)
+                    )
+                    rows = cur.fetchall()
+                    
+                    results = []
+                    for row in rows:
+                        results.append({
+                            "target_id": str(row[0]),
+                            "similarity": float(row[1]),
+                            "reason": row[2]
+                        })
+            return results
+        except Exception as e:
+            logger.error(f"Error fetching neighbors for card {card_id}: {e}")
+            raise
