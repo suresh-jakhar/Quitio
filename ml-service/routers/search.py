@@ -104,7 +104,109 @@ async def keyword_search(
         logger.error(f"Keyword search endpoint error: {e}")
         raise HTTPException(status_code=500, detail="Keyword search failed.")
 
-@router.post("/hybrid")
-async def hybrid_search():
-    # Stub for Phase 24
-    return {"message": "Hybrid search endpoint stub"}
+class HybridSearchRequest(BaseModel):
+    query: str = Field(..., description="The search query string.")
+    user_id: str = Field(..., description="The UUID of the user performing the search.")
+    top_k: int = Field(10, ge=1, le=100, description="Number of results to return.")
+    vector_weight: float = Field(0.5, ge=0.0, le=1.0, description="Weight for vector search results.")
+    keyword_weight: float = Field(0.5, ge=0.0, le=1.0, description="Weight for keyword search results.")
+
+def merge_and_rank_results(
+    vector_results: List[dict], 
+    keyword_results: List[dict], 
+    vector_weight: float, 
+    keyword_weight: float, 
+    limit: int
+) -> List[dict]:
+    """
+    Combine results from vector and keyword search, normalize scores, and re-rank.
+    """
+    score_map = {}
+    
+    # 1. Process Vector Results (already 0-1)
+    for res in vector_results:
+        card_id = res['id']
+        score_map[card_id] = {
+            'data': res,
+            'vector_score': res['similarity'],
+            'keyword_score': 0.0
+        }
+    
+    # 2. Process Keyword Results (ts_rank needs normalization)
+    # We'll use a simple max-normalization for this batch
+    max_keyword_score = max([res['similarity'] for res in keyword_results]) if keyword_results else 1.0
+    if max_keyword_score == 0: max_keyword_score = 1.0
+    
+    for res in keyword_results:
+        card_id = res['id']
+        normalized_keyword_score = res['similarity'] / max_keyword_score
+        
+        if card_id not in score_map:
+            score_map[card_id] = {
+                'data': res,
+                'vector_score': 0.0,
+                'keyword_score': normalized_keyword_score
+            }
+        else:
+            score_map[card_id]['keyword_score'] = normalized_keyword_score
+    
+    # 3. Calculate Hybrid Score
+    final_results = []
+    for card_id, scores in score_map.items():
+        hybrid_score = (vector_weight * scores['vector_score']) + (keyword_weight * scores['keyword_score'])
+        
+        # Update the similarity in the original data object
+        result_item = scores['data']
+        result_item['similarity'] = hybrid_score
+        final_results.append(result_item)
+    
+    # 4. Sort and Limit
+    final_results.sort(key=lambda x: x['similarity'], reverse=True)
+    return final_results[:limit]
+
+@router.post("/hybrid", response_model=SearchResponse)
+async def hybrid_search(
+    request: HybridSearchRequest,
+    embed_service: EmbeddingService = Depends(get_embedding_service),
+    vector_store: VectorStore = Depends(get_vector_store)
+):
+    """
+    Perform a hybrid search combining vector similarity and keyword relevance.
+    """
+    try:
+        logger.info(f"[DEBUG-ML] Incoming hybrid search for user {request.user_id}: \"{request.query}\"")
+        
+        # 1. Get Vector Results
+        query_embedding = embed_service.embed_text(request.query)
+        vector_results = vector_store.find_similar_cards(
+            embedding=query_embedding,
+            user_id=request.user_id,
+            limit=request.top_k * 2 # Get more to allow better merging
+        )
+        
+        # 2. Get Keyword Results
+        keyword_results = vector_store.bm25_search(
+            query=request.query,
+            user_id=request.user_id,
+            limit=request.top_k * 2
+        )
+        
+        # 3. Merge and Rank
+        merged_results = merge_and_rank_results(
+            vector_results=vector_results,
+            keyword_results=keyword_results,
+            vector_weight=request.vector_weight,
+            keyword_weight=request.keyword_weight,
+            limit=request.top_k
+        )
+        
+        logger.info(f"[DEBUG-ML] Hybrid search returned {len(merged_results)} unified results.")
+        
+        return SearchResponse(
+            query=request.query,
+            results=merged_results,
+            count=len(merged_results)
+        )
+    except Exception as e:
+        logger.error(f"Hybrid search endpoint error: {e}")
+        raise HTTPException(status_code=500, detail="Hybrid search failed.")
