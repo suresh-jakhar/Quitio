@@ -4,6 +4,8 @@ interface DocxPreviewProps {
     file_name?: string; // legacy fallback
     word_count?: number;
     file_size?: number;
+    author?: string;
+    modified_date?: string;
   };
   extractedText?: string;
 }
@@ -14,6 +16,8 @@ export default function DocxPreview({ metadata, extractedText }: DocxPreviewProp
     file_name,
     word_count = '?',
     file_size,
+    author,
+    modified_date,
   } = metadata;
 
   const displayName = (original_name || file_name || 'document.docx').replace(/\.docx?$/i, '');
@@ -25,7 +29,7 @@ export default function DocxPreview({ metadata, extractedText }: DocxPreviewProp
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const snippet = extractedText?.slice(0, 120)?.trim();
+  const snippet = extractedText?.slice(0, 200)?.trim();
 
   return (
     <div className="docx-preview">
@@ -34,6 +38,16 @@ export default function DocxPreview({ metadata, extractedText }: DocxPreviewProp
       <div className="docx-meta">
         {word_count} word{Number(word_count) !== 1 ? 's' : ''}
       </div>
+      {author && author !== 'Unknown' && (
+        <div style={{ fontSize: 'var(--font-size-xs)', opacity: 0.85, marginTop: 'var(--space-xs)' }}>
+          By: {author}
+        </div>
+      )}
+      {modified_date && (
+        <div style={{ fontSize: 'var(--font-size-xs)', opacity: 0.85, marginTop: 'var(--space-xs)' }}>
+          Modified: {new Date(modified_date).toLocaleDateString()}
+        </div>
+      )}
       {file_size && (
         <div style={{ fontSize: 'var(--font-size-xs)', opacity: 0.85, marginTop: 'var(--space-xs)' }}>
           {formatFileSize(file_size)}

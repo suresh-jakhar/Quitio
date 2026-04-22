@@ -27,7 +27,7 @@ export default function PdfPreview({ metadata, extractedText }: PdfPreviewProps)
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const snippet = extractedText?.slice(0, 120)?.trim();
+  const snippet = extractedText?.slice(0, 200)?.trim();
 
   return (
     <div className="pdf-preview">

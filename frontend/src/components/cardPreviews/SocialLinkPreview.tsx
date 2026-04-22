@@ -16,8 +16,10 @@ export default function SocialLinkPreview({
     og_title = 'Untitled',
     og_description = '',
     url = '#',
-    source = 'Link',
-  } = metadata;
+    platform,
+    source,
+    created_at
+  } = metadata as any;
 
   const openLink = () => {
     if (url && url !== '#') {
@@ -25,8 +27,14 @@ export default function SocialLinkPreview({
     }
   };
 
+  const displaySource = platform || source || 'Link';
+
   return (
-    <div className="social-preview">
+    <div 
+      className="social-preview" 
+      onClick={openLink}
+      style={{ cursor: url !== '#' ? 'pointer' : 'default' }}
+    >
       {og_image ? (
         <img src={og_image} alt={og_title} className="social-thumbnail" />
       ) : (
@@ -43,10 +51,19 @@ export default function SocialLinkPreview({
         </div>
       )}
       <div className="social-info">
-        <div className="social-source">{source}</div>
+        <div className="social-source" style={{ textTransform: 'capitalize', fontWeight: 'bold' }}>
+          {displaySource}
+        </div>
         <div className="social-title">{og_title}</div>
         {og_description && (
-          <div className="social-description">{og_description}</div>
+          <div className="social-description" style={{ fontSize: 'var(--font-size-xs)', opacity: 0.8, marginTop: '4px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            {og_description}
+          </div>
+        )}
+        {created_at && (
+           <div className="social-timestamp" style={{ fontSize: 'var(--font-size-xs)', opacity: 0.6, marginTop: '4px' }}>
+              {new Date(created_at).toLocaleDateString()}
+           </div>
         )}
       </div>
     </div>

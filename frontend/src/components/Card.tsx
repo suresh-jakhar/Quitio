@@ -54,10 +54,11 @@ const PreviewRenderer: React.FC<{
   contentType: string;
   metadata: Record<string, any>;
   extractedText?: string;
-}> = ({ contentType, metadata, extractedText }) => {
+  createdAt?: string;
+}> = ({ contentType, metadata, extractedText, createdAt }) => {
   switch (contentType) {
     case 'social_link':
-      return <SocialLinkPreview metadata={metadata} />;
+      return <SocialLinkPreview metadata={{ ...metadata, created_at: createdAt }} />;
     case 'pdf':
       return <PdfPreview metadata={metadata} extractedText={extractedText} />;
     case 'docx':
@@ -145,6 +146,7 @@ export default function Card({
               contentType={cardData.content_type}
               metadata={cardData.metadata}
               extractedText={cardData.extracted_text}
+              createdAt={cardData.created_at}
             />
           </div>
         )}
@@ -184,6 +186,7 @@ export default function Card({
             contentType={cardData.content_type}
             metadata={cardData.metadata}
             extractedText={cardData.extracted_text}
+            createdAt={cardData.created_at}
           />
         </div>
 
@@ -234,7 +237,12 @@ export default function Card({
       style={{ cursor: onClick ? 'pointer' : 'default' }}
     >
       <div className="card-preview-container">
-        <PreviewRenderer contentType={cardData.content_type} metadata={cardData.metadata} extractedText={cardData.extracted_text} />
+        <PreviewRenderer 
+          contentType={cardData.content_type} 
+          metadata={cardData.metadata} 
+          extractedText={cardData.extracted_text} 
+          createdAt={cardData.created_at}
+        />
       </div>
 
       <div className="card-content">
