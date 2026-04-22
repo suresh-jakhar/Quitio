@@ -5,6 +5,7 @@ import logging
 
 import config
 from utils.logging import setup_logging
+from services.model_loader import ModelLoader
 from routers import health, embed, search, graph, rag
 
 # Setup logging
@@ -15,7 +16,15 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Startup logic
     logger.info("Starting QUITIO ML Service...")
-    # Example: model_loader.load_model()
+    
+    # Pre-load the embedding model
+    try:
+        loader = ModelLoader(model_name=config.MODEL_NAME, device=config.MODEL_DEVICE)
+        loader.load_model()
+    except Exception as e:
+        logger.error(f"Critical error during startup: {e}")
+        # In production, you might want to exit here
+        
     yield
     # Shutdown logic
     logger.info("Shutting down QUITIO ML Service...")
