@@ -1,17 +1,24 @@
 interface PdfPreviewProps {
   metadata: {
-    file_name?: string;
+    original_name?: string;
+    file_name?: string; // legacy fallback
     page_count?: number;
     file_size?: number;
+    author?: string;
   };
+  extractedText?: string;
 }
 
-export default function PdfPreview({ metadata }: PdfPreviewProps): JSX.Element {
+export default function PdfPreview({ metadata, extractedText }: PdfPreviewProps): JSX.Element {
   const {
-    file_name = 'document.pdf',
-    page_count = '?',
+    original_name,
+    file_name,
+    page_count,
     file_size,
+    author,
   } = metadata;
+
+  const displayName = (original_name || file_name || 'document.pdf').replace(/\.pdf$/i, '');
 
   const formatFileSize = (bytes?: number): string => {
     if (!bytes) return '';
@@ -20,16 +27,28 @@ export default function PdfPreview({ metadata }: PdfPreviewProps): JSX.Element {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const snippet = extractedText?.slice(0, 120)?.trim();
+
   return (
     <div className="pdf-preview">
       <div className="pdf-icon">📄</div>
-      <div className="pdf-name">{file_name.replace(/\.pdf$/i, '')}</div>
+      <div className="pdf-name">{displayName}</div>
       <div className="pdf-pages">
-        {page_count} page{Number(page_count) !== 1 ? 's' : ''}
+        {page_count !== undefined ? `${page_count} page${page_count !== 1 ? 's' : ''}` : ''}
       </div>
+      {author && author !== 'Unknown' && (
+        <div style={{ fontSize: 'var(--font-size-xs)', opacity: 0.85, marginTop: 'var(--space-xs)' }}>
+          {author}
+        </div>
+      )}
       {file_size && (
         <div style={{ fontSize: 'var(--font-size-xs)', opacity: 0.85, marginTop: 'var(--space-xs)' }}>
           {formatFileSize(file_size)}
+        </div>
+      )}
+      {snippet && (
+        <div style={{ fontSize: 'var(--font-size-xs)', opacity: 0.75, marginTop: 'var(--space-sm)', lineHeight: 1.4, textAlign: 'left' }}>
+          {snippet}…
         </div>
       )}
     </div>

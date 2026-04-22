@@ -49,15 +49,16 @@ const getContentTypeLabel = (contentType: string): string => {
   return labelMap[contentType] || contentType;
 };
 
-const PreviewRenderer: React.FC<{ contentType: string; metadata: Record<string, any> }> = ({
-  contentType,
-  metadata,
-}) => {
+const PreviewRenderer: React.FC<{
+  contentType: string;
+  metadata: Record<string, any>;
+  extractedText?: string;
+}> = ({ contentType, metadata, extractedText }) => {
   switch (contentType) {
     case 'social_link':
       return <SocialLinkPreview metadata={metadata} />;
     case 'pdf':
-      return <PdfPreview metadata={metadata} />;
+      return <PdfPreview metadata={metadata} extractedText={extractedText} />;
     case 'docx':
     case 'doc':
       return <DocxPreview metadata={metadata} />;
@@ -137,9 +138,13 @@ export default function Card({
           <SourceLink cardData={cardData} />
         </div>
 
-        {(cardData.metadata?.og_image || cardData.metadata?.file_name) && (
+        {(cardData.metadata?.og_image || cardData.content_type === 'pdf' || cardData.content_type === 'docx' || cardData.content_type === 'doc') && (
           <div className="card-detail-preview">
-            <PreviewRenderer contentType={cardData.content_type} metadata={cardData.metadata} />
+            <PreviewRenderer
+              contentType={cardData.content_type}
+              metadata={cardData.metadata}
+              extractedText={cardData.extracted_text}
+            />
           </div>
         )}
 
@@ -174,9 +179,11 @@ export default function Card({
         style={{ cursor: onClick ? 'pointer' : 'default' }}
       >
         <div className="card-list-thumbnail">
-          {(cardData.metadata?.og_image || cardData.metadata?.file_name) && (
-            <PreviewRenderer contentType={cardData.content_type} metadata={cardData.metadata} />
-          )}
+          <PreviewRenderer
+            contentType={cardData.content_type}
+            metadata={cardData.metadata}
+            extractedText={cardData.extracted_text}
+          />
         </div>
 
         <div className="card-list-content">

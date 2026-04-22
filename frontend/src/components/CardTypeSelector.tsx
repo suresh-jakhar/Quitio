@@ -5,14 +5,14 @@ interface CardTypeSelectorProps {
 
 const cardTypes = [
   { id: 'social_link', label: 'Social Link', enabled: true },
-  { id: 'pdf', label: 'PDF (Phase 11)', enabled: false },
-  { id: 'docx', label: 'Word Document (Phase 12)', enabled: false },
+  { id: 'pdf', label: 'PDF', enabled: true },
+  { id: 'docx', label: 'Word Document (coming soon)', enabled: false },
 ];
 
 export default function CardTypeSelector({
   value,
   onChange,
-}: CardTypeSelectorProps): JSX.Element {
+}: CardTypeSelectorProps) {
   return (
     <div className="card-type-selector">
       <label className="selector-label">Select card type:</label>

@@ -804,3 +804,177 @@
     padding: var(--space-md);
   }
 }
+
+/* ===== File Drop Zone (Phase 11) ===== */
+.file-drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-xl);
+  background-color: var(--color-light-gray);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  padding: var(--space-lg);
+  text-align: center;
+  user-select: none;
+  position: relative;
+}
+
+.file-drop-zone:hover,
+.file-drop-zone:focus-visible {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-lighter);
+  outline: none;
+}
+
+.file-drop-zone.drag-over {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-lighter);
+  transform: scale(1.01);
+  box-shadow: var(--shadow-md);
+}
+
+.file-drop-zone.has-file {
+  border-style: solid;
+  border-color: var(--color-primary);
+  background-color: #f0f7ff;
+}
+
+.file-drop-zone__placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.file-drop-zone__icon {
+  font-size: 2.5em;
+  line-height: 1;
+}
+
+.file-drop-zone__text {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.file-drop-zone__hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  opacity: 0.7;
+  margin: 0;
+}
+
+.file-drop-zone__selected {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.file-drop-zone__name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  word-break: break-all;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.file-drop-zone__size {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.file-drop-zone__remove {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.file-drop-zone__remove:hover:not(:disabled) {
+  background-color: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+/* ===== Upload Progress Bar (Phase 11) ===== */
+.upload-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+}
+
+.upload-progress__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.upload-progress__label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.upload-progress__percent {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary);
+}
+
+.upload-progress__track {
+  height: 6px;
+  background-color: var(--color-light-gray);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.upload-progress__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary) 0%, #6366f1 100%);
+  border-radius: var(--radius-full);
+  transition: width 0.2s ease;
+}
+
+/* Inline input (used in PdfUploadForm tags field) */
+.input {
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  width: 100%;
+  background-color: var(--color-white);
+  color: var(--color-text-primary);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.input:disabled {
+  background-color: var(--color-light-gray);
+  opacity: 0.6;
+  cursor: not-allowed;
+}

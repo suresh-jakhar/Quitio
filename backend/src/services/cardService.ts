@@ -2,6 +2,8 @@ import { v4 as uuidv4 } from 'uuid';
 import pool from '../utils/db';
 import { AuthRequest } from '../middleware/auth';
 import { extractSocialMetadata } from '../extractors/socialLinkExtractor';
+import { extractFromPdf } from '../extractors/pdfExtractor';
+import { cleanupTempFile } from '../extractors/storageService';
 
 export interface Card {
   id: string;
@@ -222,6 +224,43 @@ export const getCardTags = async (cardId: string, userId: string): Promise<any[]
   );
 
   return result.rows;
+};
+
+/**
+ * Create card from an uploaded PDF file (Phase 11)
+ */
+export const createPdfCard = async (
+  userId: string,
+  data: {
+    filePath: string;
+    originalName: string;
+    tags?: string[];
+  }
+): Promise<Card> => {
+  let extraction;
+  try {
+    extraction = await extractFromPdf(data.filePath);
+  } finally {
+    // Always clean up the temp file, even if extraction fails
+    cleanupTempFile(data.filePath);
+  }
+
+  const card = await createCard(userId, {
+    title: extraction.metadata.title || data.originalName || 'Untitled PDF',
+    content_type: 'pdf',
+    raw_content: data.originalName,
+    extracted_text: extraction.text,
+    metadata: {
+      page_count: extraction.page_count,
+      author: extraction.metadata.author,
+      created_date: extraction.metadata.created_date,
+      file_size: extraction.metadata.file_size,
+      original_name: data.originalName,
+    },
+    tags: data.tags,
+  });
+
+  return card;
 };
 
 /**
