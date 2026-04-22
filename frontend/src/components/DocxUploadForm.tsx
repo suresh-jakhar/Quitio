@@ -1,6 +1,7 @@
 import { useState, useRef, DragEvent, ChangeEvent } from 'react';
 import Button from './Button';
 import FileUploadProgress from './FileUploadProgress';
+import TagInput from './TagInput';
 
 interface DocxUploadFormProps {
   onSubmit: (data: { file: File; tags: string[] }) => Promise<void>;
@@ -15,7 +16,7 @@ export default function DocxUploadForm({
   isLoading = false,
 }: DocxUploadFormProps): JSX.Element {
   const [file, setFile] = useState<File | null>(null);
-  const [tags, setTags] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -77,11 +78,6 @@ export default function DocxUploadForm({
       return;
     }
 
-    const tagList = tags
-      .split(',')
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0);
-
     setIsUploading(true);
     setUploadProgress(0);
 
@@ -94,7 +90,7 @@ export default function DocxUploadForm({
     }, 200);
 
     try {
-      await onSubmit({ file, tags: tagList });
+      await onSubmit({ file, tags });
       clearInterval(progressInterval);
       setUploadProgress(100);
     } catch (err: any) {
@@ -174,14 +170,11 @@ export default function DocxUploadForm({
 
       {/* Tags input */}
       <div className="form-group" style={{ marginTop: 'var(--space-md)' }}>
-        <label htmlFor="docx-tags-input">Tags (comma-separated)</label>
-        <input
-          id="docx-tags-input"
-          type="text"
-          className="input"
-          placeholder="notes, draft, report"
+        <label htmlFor="docx-tags-input">Tags</label>
+        <TagInput
           value={tags}
-          onChange={(e) => setTags(e.target.value)}
+          onChange={setTags}
+          contentType="docx"
           disabled={formBusy}
         />
       </div>

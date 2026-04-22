@@ -1,6 +1,7 @@
 import { useState, useRef, DragEvent, ChangeEvent } from 'react';
 import Button from './Button';
 import FileUploadProgress from './FileUploadProgress';
+import TagInput from './TagInput';
 
 interface PdfUploadFormProps {
   onSubmit: (data: { file: File; tags: string[] }) => Promise<void>;
@@ -15,7 +16,7 @@ export default function PdfUploadForm({
   isLoading = false,
 }: PdfUploadFormProps): JSX.Element {
   const [file, setFile] = useState<File | null>(null);
-  const [tags, setTags] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -75,11 +76,6 @@ export default function PdfUploadForm({
       return;
     }
 
-    const tagList = tags
-      .split(',')
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0);
-
     setIsUploading(true);
     setUploadProgress(0);
 
@@ -92,7 +88,7 @@ export default function PdfUploadForm({
     }, 200);
 
     try {
-      await onSubmit({ file, tags: tagList });
+      await onSubmit({ file, tags });
       clearInterval(progressInterval);
       setUploadProgress(100);
     } catch (err: any) {
@@ -172,14 +168,11 @@ export default function PdfUploadForm({
 
       {/* Tags input */}
       <div className="form-group" style={{ marginTop: 'var(--space-md)' }}>
-        <label htmlFor="pdf-tags-input">Tags (comma-separated)</label>
-        <input
-          id="pdf-tags-input"
-          type="text"
-          className="input"
-          placeholder="research, finance, report"
+        <label htmlFor="pdf-tags-input">Tags</label>
+        <TagInput
           value={tags}
-          onChange={(e) => setTags(e.target.value)}
+          onChange={setTags}
+          contentType="pdf"
           disabled={formBusy}
         />
       </div>

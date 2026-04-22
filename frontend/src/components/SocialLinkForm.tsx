@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import Input from './Input';
+import TagInput from './TagInput';
 import Button from './Button';
 import MetadataPreview from './MetadataPreview';
 import useSocialLinkMetadata from '../hooks/useSocialLinkMetadata';
@@ -14,7 +14,7 @@ export default function SocialLinkForm({
   isLoading = false,
 }: SocialLinkFormProps): JSX.Element {
   const [url, setUrl] = useState('');
-  const [tags, setTags] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [error, setError] = useState('');
   const { metadata, loading: metadataLoading, error: metadataError, fetchMetadata } = useSocialLinkMetadata();
 
@@ -60,13 +60,8 @@ export default function SocialLinkForm({
       return;
     }
 
-    const tagList = tags
-      .split(',')
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0);
-
     try {
-      await onSubmit({ url, tags: tagList });
+      await onSubmit({ url, tags });
     } catch (err: any) {
       setError(err.message || 'Failed to add card');
     }
@@ -88,11 +83,12 @@ export default function SocialLinkForm({
 
       <div className="form-group">
         <label>URL</label>
-        <Input
+        <input
           type="url"
+          className="input-field"
           placeholder="https://..."
           value={url}
-          onChange={setUrl}
+          onChange={(e) => setUrl(e.target.value)}
           disabled={isLoading}
         />
       </div>
@@ -105,12 +101,12 @@ export default function SocialLinkForm({
       )}
 
       <div className="form-group">
-        <label>Tags (comma-separated)</label>
-        <Input
-          type="text"
-          placeholder="tech, article, research"
+        <label>Tags</label>
+        <TagInput
           value={tags}
           onChange={setTags}
+          contentType="social_link"
+          url={url}
           disabled={isLoading}
         />
       </div>
