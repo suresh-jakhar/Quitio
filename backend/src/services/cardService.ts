@@ -35,32 +35,68 @@ export interface UpdateCardDTO {
 }
 
 /**
- * Get all cards for a user (paginated)
+ * Get all cards for a user (paginated).
+ * Supports:
+ *   - No filter:          return all user cards
+ *   - tagIds + mode=OR:   cards that have ANY of the given tags
+ *   - tagIds + mode=AND:  cards that have ALL of the given tags
+ * (Phase 15: single tagId kept for backward compat via tagIds path)
  */
 export const getUserCards = async (
   userId: string,
   page: number = 1,
   limit: number = 20,
-  tagId?: string
+  tagIds?: string[],
+  filterMode: 'AND' | 'OR' = 'OR'
 ): Promise<{ cards: Card[]; total: number; page: number }> => {
   const offset = (page - 1) * limit;
 
-  let countQuery = 'SELECT COUNT(*) FROM cards c WHERE c.user_id = $1';
-  let dataQuery = 'SELECT c.* FROM cards c WHERE c.user_id = $1';
+  let countQuery: string;
+  let dataQuery: string;
   const queryParams: any[] = [userId];
 
-  if (tagId) {
-    countQuery = `
-      SELECT COUNT(*) FROM cards c
-      JOIN card_tags ct ON c.id = ct.card_id
-      WHERE c.user_id = $1 AND ct.tag_id = $2
-    `;
-    dataQuery = `
-      SELECT c.* FROM cards c
-      JOIN card_tags ct ON c.id = ct.card_id
-      WHERE c.user_id = $1 AND ct.tag_id = $2
-    `;
-    queryParams.push(tagId);
+  if (tagIds && tagIds.length > 0) {
+    // Build $2, $3, ... placeholders for tag IDs
+    const tagPlaceholders = tagIds.map((_, i) => `$${i + 2}`).join(', ');
+    queryParams.push(...tagIds);
+
+    if (filterMode === 'AND') {
+      // AND: card must have ALL selected tags
+      // HAVING COUNT(DISTINCT ct.tag_id) = <number of tags>
+      const tagCount = tagIds.length;
+      countQuery = `
+        SELECT COUNT(*) FROM (
+          SELECT c.id FROM cards c
+          JOIN card_tags ct ON c.id = ct.card_id
+          WHERE c.user_id = $1 AND ct.tag_id IN (${tagPlaceholders})
+          GROUP BY c.id
+          HAVING COUNT(DISTINCT ct.tag_id) = ${tagCount}
+        ) sub
+      `;
+      dataQuery = `
+        SELECT c.* FROM cards c
+        JOIN card_tags ct ON c.id = ct.card_id
+        WHERE c.user_id = $1 AND ct.tag_id IN (${tagPlaceholders})
+        GROUP BY c.id
+        HAVING COUNT(DISTINCT ct.tag_id) = ${tagCount}
+      `;
+    } else {
+      // OR: card must have ANY of the selected tags
+      countQuery = `
+        SELECT COUNT(DISTINCT c.id) FROM cards c
+        JOIN card_tags ct ON c.id = ct.card_id
+        WHERE c.user_id = $1 AND ct.tag_id IN (${tagPlaceholders})
+      `;
+      dataQuery = `
+        SELECT DISTINCT c.* FROM cards c
+        JOIN card_tags ct ON c.id = ct.card_id
+        WHERE c.user_id = $1 AND ct.tag_id IN (${tagPlaceholders})
+      `;
+    }
+  } else {
+    // No filter — return all cards for user
+    countQuery = 'SELECT COUNT(*) FROM cards c WHERE c.user_id = $1';
+    dataQuery = 'SELECT c.* FROM cards c WHERE c.user_id = $1';
   }
 
   const countResult = await pool.query(countQuery, queryParams);

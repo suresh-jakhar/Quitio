@@ -208,11 +208,24 @@ router.post(
 
 /**
  * GET /cards - Get all user's cards (paginated)
+ *
+ * Query params (Phase 16 multi-tag filtering):
+ *   tags  - comma-separated tag UUIDs (e.g., "id1,id2")
+ *   mode  - "AND" | "OR" (default OR)
+ *   page  - page number (default 1)
+ *   limit - items per page (default 20)
+ *
+ * Backward compat (Phase 15):
+ *   tag_id - single tag UUID (superseded by `tags`)
  */
 router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const pageParam = Array.isArray(req.query.page) ? (req.query.page as string[])[0] : (req.query.page as string);
-    const limitParam = Array.isArray(req.query.limit) ? (req.query.limit as string[])[0] : (req.query.limit as string);
+    const pageParam = Array.isArray(req.query.page)
+      ? (req.query.page as string[])[0]
+      : (req.query.page as string);
+    const limitParam = Array.isArray(req.query.limit)
+      ? (req.query.limit as string[])[0]
+      : (req.query.limit as string);
 
     const page = parseInt(pageParam || '1') || 1;
     const limit = parseInt(limitParam || '20') || 20;
@@ -224,12 +237,33 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
       });
     }
 
-    let tagId = Array.isArray(req.query.tag_id) ? (req.query.tag_id as string[])[0] : (req.query.tag_id as string | undefined);
-    if (tagId === 'undefined' || tagId === 'null' || tagId === '') {
-      tagId = undefined;
+    // --- Phase 16: multi-tag support ---
+    const tagsParam = Array.isArray(req.query.tags)
+      ? (req.query.tags as string[])[0]
+      : (req.query.tags as string | undefined);
+
+    const modeParam = Array.isArray(req.query.mode)
+      ? (req.query.mode as string[])[0]
+      : (req.query.mode as string | undefined);
+
+    const filterMode: 'AND' | 'OR' =
+      modeParam?.toUpperCase() === 'AND' ? 'AND' : 'OR';
+
+    let tagIds: string[] | undefined;
+
+    if (tagsParam && tagsParam !== 'undefined' && tagsParam !== 'null' && tagsParam !== '') {
+      tagIds = tagsParam.split(',').map((id) => id.trim()).filter(Boolean);
+    } else {
+      // Backward compat: Phase 15 single tag_id param
+      let tagId = Array.isArray(req.query.tag_id)
+        ? (req.query.tag_id as string[])[0]
+        : (req.query.tag_id as string | undefined);
+      if (tagId && tagId !== 'undefined' && tagId !== 'null' && tagId !== '') {
+        tagIds = [tagId];
+      }
     }
 
-    const result = await cardService.getUserCards(req.userId!, page, limit, tagId);
+    const result = await cardService.getUserCards(req.userId!, page, limit, tagIds, filterMode);
 
     res.status(200).json({
       cards: result.cards,

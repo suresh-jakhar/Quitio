@@ -6,6 +6,7 @@ import authMiddleware from './middleware/auth';
 import authRoutes from './routes/auth';
 import cardRoutes from './routes/cards';
 import tagRoutes from './routes/tags';
+import searchRoutes from './routes/search';
 import database from './utils/database';
 
 const app: Express = express();
@@ -24,6 +25,7 @@ app.use('/auth', authRoutes);
 // Protected routes (require authentication)
 app.use('/cards', authMiddleware, cardRoutes);
 app.use('/tags', authMiddleware, tagRoutes);
+app.use('/search', authMiddleware, searchRoutes); // Phase 17: keyword search
 
 // Error handler (must be last)
 app.use(errorHandler);

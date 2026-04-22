@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
+import { FilterMode } from './useCardFilter';
 
 interface CardTag {
   id: string;
@@ -32,7 +33,15 @@ interface UseCardsResult {
   refetch: () => Promise<void>;
 }
 
-const useCards = (initialLimit = 20, tagId?: string | null): UseCardsResult => {
+/**
+ * Fetches cards for the authenticated user.
+ * Supports single tag (Phase 15) and multi-tag AND/OR filtering (Phase 16).
+ */
+const useCards = (
+  initialLimit = 20,
+  tagIds?: string[] | null,
+  filterMode?: FilterMode
+): UseCardsResult => {
   const [cards, setCards] = useState<CardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,18 +49,27 @@ const useCards = (initialLimit = 20, tagId?: string | null): UseCardsResult => {
   const [total, setTotal] = useState(0);
   const [limit] = useState(initialLimit);
 
-  const fetchCards = async (currentPage: number, currentTagId?: string | null) => {
+  const fetchCards = async (
+    currentPage: number,
+    currentTagIds?: string[] | null,
+    currentMode?: FilterMode
+  ) => {
     try {
       setLoading(true);
       setError(null);
 
-      const response = await api.get('/cards', {
-        params: {
-          page: currentPage,
-          limit,
-          tag_id: currentTagId || undefined,
-        },
-      });
+      // Build query params
+      const params: Record<string, any> = {
+        page: currentPage,
+        limit,
+      };
+
+      if (currentTagIds && currentTagIds.length > 0) {
+        params.tags = currentTagIds.join(',');
+        params.mode = currentMode || 'OR';
+      }
+
+      const response = await api.get('/cards', { params });
 
       const { cards: newCards, pagination } = response.data;
 
@@ -64,7 +82,8 @@ const useCards = (initialLimit = 20, tagId?: string | null): UseCardsResult => {
       setTotal(pagination.total);
       setPageState(currentPage);
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || err.message || 'Failed to fetch cards';
+      const errorMessage =
+        err.response?.data?.message || err.message || 'Failed to fetch cards';
       setError(errorMessage);
       console.error('Failed to fetch cards:', err);
     } finally {
@@ -72,16 +91,18 @@ const useCards = (initialLimit = 20, tagId?: string | null): UseCardsResult => {
     }
   };
 
+  // Re-fetch whenever tagIds or filterMode changes; reset to page 1
   useEffect(() => {
-    fetchCards(1, tagId);
-  }, [tagId]);
+    fetchCards(1, tagIds, filterMode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(tagIds), filterMode]);
 
   const loadMore = () => {
-    fetchCards(page + 1, tagId);
+    fetchCards(page + 1, tagIds, filterMode);
   };
 
   const refetch = async () => {
-    await fetchCards(1, tagId);
+    await fetchCards(1, tagIds, filterMode);
   };
 
   const totalPages = Math.ceil(total / limit);
@@ -96,7 +117,7 @@ const useCards = (initialLimit = 20, tagId?: string | null): UseCardsResult => {
     total,
     hasMore,
     loadMore,
-    setPage: (newPage) => fetchCards(newPage),
+    setPage: (newPage) => fetchCards(newPage, tagIds, filterMode),
     refetch,
   };
 };
