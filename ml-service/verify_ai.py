@@ -16,11 +16,18 @@ try:
     # 3. Test AI Logic (Similarity)
     # Finding the user ID for ai-test@quitio.com first
     import psycopg
-    DATABASE_URL = 'postgresql://neondb_owner:npg_pFufT8Ml0EnJ@ep-long-paper-amzv0gzn-pooler.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
+    from config import DATABASE_URL
+    
+    if not DATABASE_URL:
+        raise Exception("DATABASE_URL environment variable is not set")
+
     with psycopg.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT id FROM users WHERE email = 'ai-test@quitio.com'")
-            user_id = str(cur.fetchone()[0])
+            row = cur.fetchone()
+            if not row:
+                raise Exception("Test user 'ai-test@quitio.com' not found. Run verification after creating the test account.")
+            user_id = str(row[0])
 
     payload = {
         'query': 'feline',
