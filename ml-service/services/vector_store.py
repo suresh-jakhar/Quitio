@@ -79,8 +79,56 @@ class VectorStore:
             logger.error(f"Error finding similar cards: {e}")
             raise
 
+    def bm25_search(self, 
+                    query: str, 
+                    user_id: str, 
+                    limit: int = 10) -> List[dict]:
+        """
+        Full-text search using PostgreSQL FTS (BM25-like ranking).
+        Searches across titles and extracted_text.
+        """
+        try:
+            with self.db_service.get_connection() as conn:
+                with conn.cursor() as cur:
+                    # ts_rank calculates relevance based on keyword frequency and proximity
+                    # we use weight: title (A) + extracted_text (B)
+                    sql = """
+                        SELECT 
+                            id, title, content_type,
+                            ts_rank(
+                                setweight(to_tsvector('english', COALESCE(title, '')), 'A') || 
+                                setweight(to_tsvector('english', COALESCE(extracted_text, '')), 'B'), 
+                                plainto_tsquery('english', %s)
+                            ) as rank
+                        FROM cards
+                        WHERE user_id = %s
+                          AND (
+                            to_tsvector('english', COALESCE(title, '')) || 
+                            to_tsvector('english', COALESCE(extracted_text, ''))
+                          ) @@ plainto_tsquery('english', %s)
+                        ORDER BY rank DESC
+                        LIMIT %s
+                    """
+                    params = [query, user_id, query, limit]
+
+                    cur.execute(sql, params)
+                    rows = cur.fetchall()
+                    
+                    results = []
+                    for row in rows:
+                        results.append({
+                            "id": str(row[0]),
+                            "title": row[1],
+                            "content_type": row[2],
+                            "similarity": float(row[3]) # Mapping rank to similarity for consistent UI
+                        })
+            return results
+        except Exception as e:
+            logger.error(f"Error performing BM25 search: {e}")
+            raise
+
     def init_index(self):
-        """Ensure pgvector extension, column, and index are present."""
+        """Ensure pgvector extension, column, and indexes are present."""
         try:
             with self.db_service.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -88,7 +136,6 @@ class VectorStore:
                     cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
                     
                     # 2. Add embedding column if it doesn't exist
-                    # (384 is the dimension for all-MiniLM-L6-v2)
                     cur.execute("""
                         ALTER TABLE cards 
                         ADD COLUMN IF NOT EXISTS embedding vector(384)
@@ -100,7 +147,17 @@ class VectorStore:
                         USING ivfflat (embedding vector_cosine_ops) 
                         WITH (lists = 100)
                     """)
+
+                    # 4. Create GIN index for Full-Text Search
+                    # This speeds up the @@ operator queries
+                    cur.execute("""
+                        CREATE INDEX IF NOT EXISTS idx_cards_fts ON cards 
+                        USING gin ((
+                            setweight(to_tsvector('english', COALESCE(title, '')), 'A') || 
+                            setweight(to_tsvector('english', COALESCE(extracted_text, '')), 'B')
+                        ))
+                    """)
                 conn.commit()
-            logger.info("pgvector database structure initialized successfully.")
+            logger.info("pgvector and FTS database structure initialized successfully.")
         except Exception as e:
-            logger.error(f"Error initializing pgvector structure: {e}")
+            logger.error(f"Error initializing database structure: {e}")

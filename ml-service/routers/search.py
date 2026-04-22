@@ -71,10 +71,38 @@ async def vector_search(
         logger.error(f"Vector search endpoint error: {e}")
         raise HTTPException(status_code=500, detail="Search operation failed.")
 
-@router.post("/keyword")
-async def keyword_search():
-    # Stub for Phase 23
-    return {"message": "Keyword search endpoint stub"}
+class KeywordSearchRequest(BaseModel):
+    query: str = Field(..., description="The keyword query string.")
+    user_id: str = Field(..., description="The UUID of the user performing the search.")
+    top_k: int = Field(10, ge=1, le=100, description="Number of results to return.")
+
+@router.post("/keyword", response_model=SearchResponse)
+async def keyword_search(
+    request: KeywordSearchRequest,
+    vector_store: VectorStore = Depends(get_vector_store)
+):
+    """
+    Perform a keyword-based search using PostgreSQL Full-Text Search.
+    Results are ranked using ts_rank (BM25-like).
+    """
+    try:
+        logger.info(f"[DEBUG-ML] Incoming keyword search for user {request.user_id}: \"{request.query}\"")
+        
+        results = vector_store.bm25_search(
+            query=request.query,
+            user_id=request.user_id,
+            limit=request.top_k
+        )
+        logger.info(f"[DEBUG-ML] Found {len(results)} keyword matches.")
+        
+        return SearchResponse(
+            query=request.query,
+            results=results,
+            count=len(results)
+        )
+    except Exception as e:
+        logger.error(f"Keyword search endpoint error: {e}")
+        raise HTTPException(status_code=500, detail="Keyword search failed.")
 
 @router.post("/hybrid")
 async def hybrid_search():
