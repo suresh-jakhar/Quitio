@@ -1,8 +1,10 @@
 import { XIcon } from './icons';
 
+import React from 'react';
+
 interface TagProps {
   label: string;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLSpanElement>) => void;
   onRemove?: () => void;
   selected?: boolean;
   removable?: boolean;

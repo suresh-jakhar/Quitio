@@ -2,6 +2,7 @@ import Button from './Button';
 import Card from './Card';
 import { GridIcon, ListIcon } from './icons';
 import { CardData } from '../hooks/useCards';
+import { JSX } from 'react';
 
 interface CardGridProps {
   cards: CardData[];

@@ -1,11 +1,14 @@
-import { useState } from 'react';
-import Input from './Input';
+import { useState, useRef, DragEvent, ChangeEvent } from 'react';
 import Button from './Button';
+import FileUploadProgress from './FileUploadProgress';
 
 interface DocxUploadFormProps {
   onSubmit: (data: { file: File; tags: string[] }) => Promise<void>;
   isLoading?: boolean;
 }
+
+const MAX_FILE_SIZE_MB = 50;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 export default function DocxUploadForm({
   onSubmit,
@@ -14,13 +17,63 @@ export default function DocxUploadForm({
   const [file, setFile] = useState<File | null>(null);
   const [tags, setTags] = useState('');
   const [error, setError] = useState('');
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const validateFile = (f: File): string | null => {
+    if (!f.name.toLowerCase().endsWith('.docx') && 
+        f.type !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' && 
+        f.type !== 'application/msword') {
+      return 'Only DOCX files are accepted.';
+    }
+    if (f.size > MAX_FILE_SIZE_BYTES) {
+      return `File is too large. Maximum size is ${MAX_FILE_SIZE_MB} MB.`;
+    }
+    return null;
+  };
+
+  const handleFileSelect = (f: File) => {
+    setError('');
+    const validationError = validateFile(f);
+    if (validationError) {
+      setError(validationError);
+      setFile(null);
+      return;
+    }
+    setFile(f);
+    setUploadProgress(0);
+  };
+
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) handleFileSelect(f);
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f) handleFileSelect(f);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     if (!file) {
-      setError('Please select a document');
+      setError('Please select a DOCX file');
       return;
     }
 
@@ -29,48 +82,116 @@ export default function DocxUploadForm({
       .map((t) => t.trim())
       .filter((t) => t.length > 0);
 
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    // Simulate incremental progress while request is in flight
+    const progressInterval = setInterval(() => {
+      setUploadProgress((prev) => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 10;
+      });
+    }, 200);
+
     try {
       await onSubmit({ file, tags: tagList });
+      clearInterval(progressInterval);
+      setUploadProgress(100);
     } catch (err: any) {
+      clearInterval(progressInterval);
+      setUploadProgress(0);
       setError(err.message || 'Failed to add card');
+    } finally {
+      setIsUploading(false);
     }
   };
 
-  return (
-    <form onSubmit={handleSubmit} className="add-card-form">
-      {error && (
-        <div className="form-error">
-          {error}
-        </div>
-      )}
+  const formBusy = isLoading || isUploading;
 
-      <div className="form-group">
-        <label>Document File</label>
+  return (
+    <form onSubmit={handleSubmit} className="add-card-form" id="docx-upload-form">
+      {error && <div className="form-error">{error}</div>}
+
+      {/* Drag & Drop zone */}
+      <div
+        className={`file-drop-zone${isDragOver ? ' drag-over' : ''}${file ? ' has-file' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={() => !formBusy && fileInputRef.current?.click()}
+        role="button"
+        aria-label="Upload DOCX file"
+        tabIndex={0}
+        onKeyDown={(e) => e.key === 'Enter' && !formBusy && fileInputRef.current?.click()}
+      >
         <input
+          ref={fileInputRef}
           type="file"
-          accept=".docx,.doc,.txt"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
-          disabled={isLoading}
+          accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          onChange={handleInputChange}
+          disabled={formBusy}
+          style={{ display: 'none' }}
+          id="docx-file-input"
         />
+
+        {file ? (
+          <div className="file-drop-zone__selected">
+            <span className="file-drop-zone__icon">📝</span>
+            <span className="file-drop-zone__name">{file.name}</span>
+            <span className="file-drop-zone__size">
+              {(file.size / 1024 / 1024).toFixed(2)} MB
+            </span>
+            <button
+              type="button"
+              className="file-drop-zone__remove"
+              onClick={(e) => {
+                e.stopPropagation();
+                setFile(null);
+                setUploadProgress(0);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }}
+              disabled={formBusy}
+              aria-label="Remove selected file"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <div className="file-drop-zone__placeholder">
+            <span className="file-drop-zone__icon">📝</span>
+            <p className="file-drop-zone__text">
+              <strong>Drag & drop</strong> a DOCX here, or <strong>click to browse</strong>
+            </p>
+            <p className="file-drop-zone__hint">Maximum size: {MAX_FILE_SIZE_MB} MB</p>
+          </div>
+        )}
       </div>
 
-      <div className="form-group">
-        <label>Tags (comma-separated)</label>
-        <Input
+      {/* Upload progress */}
+      {(isUploading || uploadProgress > 0) && (
+        <FileUploadProgress progress={uploadProgress} />
+      )}
+
+      {/* Tags input */}
+      <div className="form-group" style={{ marginTop: 'var(--space-md)' }}>
+        <label htmlFor="docx-tags-input">Tags (comma-separated)</label>
+        <input
+          id="docx-tags-input"
           type="text"
-          placeholder="tech, article, research"
+          className="input"
+          placeholder="notes, draft, report"
           value={tags}
-          onChange={setTags}
-          disabled={isLoading}
+          onChange={(e) => setTags(e.target.value)}
+          disabled={formBusy}
         />
       </div>
 
       <div className="form-actions">
         <Button
-          label={isLoading ? 'Adding...' : 'Add Card'}
+          label={formBusy ? 'Uploading…' : 'Add DOCX Card'}
           variant="primary"
           type="submit"
-          disabled={isLoading || !file}
+          disabled={formBusy || !file}
         />
       </div>
     </form>

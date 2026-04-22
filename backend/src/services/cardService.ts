@@ -3,6 +3,7 @@ import pool from '../utils/db';
 import { AuthRequest } from '../middleware/auth';
 import { extractSocialMetadata } from '../extractors/socialLinkExtractor';
 import { extractFromPdf } from '../extractors/pdfExtractor';
+import { extractFromDocx } from '../extractors/docxExtractor';
 import { cleanupTempFile } from '../extractors/storageService';
 
 export interface Card {
@@ -254,6 +255,41 @@ export const createPdfCard = async (
       page_count: extraction.page_count,
       author: extraction.metadata.author,
       created_date: extraction.metadata.created_date,
+      file_size: extraction.metadata.file_size,
+      original_name: data.originalName,
+    },
+    tags: data.tags,
+  });
+
+  return card;
+};
+
+/**
+ * Create card from an uploaded DOCX file (Phase 12)
+ */
+export const createDocxCard = async (
+  userId: string,
+  data: {
+    filePath: string;
+    originalName: string;
+    tags?: string[];
+  }
+): Promise<Card> => {
+  let extraction;
+  try {
+    extraction = await extractFromDocx(data.filePath);
+  } finally {
+    // Always clean up the temp file
+    cleanupTempFile(data.filePath);
+  }
+
+  const card = await createCard(userId, {
+    title: extraction.metadata.title || data.originalName || 'Untitled DOCX',
+    content_type: 'docx',
+    raw_content: data.originalName,
+    extracted_text: extraction.text,
+    metadata: {
+      word_count: extraction.word_count,
       file_size: extraction.metadata.file_size,
       original_name: data.originalName,
     },

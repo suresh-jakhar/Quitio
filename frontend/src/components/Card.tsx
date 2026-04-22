@@ -1,3 +1,4 @@
+import React, { JSX } from 'react';
 import Tag from './Tag';
 import SourceLink from './SourceLink';
 import SocialLinkPreview from './cardPreviews/SocialLinkPreview';
@@ -61,7 +62,7 @@ const PreviewRenderer: React.FC<{
       return <PdfPreview metadata={metadata} extractedText={extractedText} />;
     case 'docx':
     case 'doc':
-      return <DocxPreview metadata={metadata} />;
+      return <DocxPreview metadata={metadata} extractedText={extractedText} />;
     default:
       return (
         <div style={{
@@ -233,7 +234,7 @@ export default function Card({
       style={{ cursor: onClick ? 'pointer' : 'default' }}
     >
       <div className="card-preview-container">
-        <PreviewRenderer contentType={cardData.content_type} metadata={cardData.metadata} />
+        <PreviewRenderer contentType={cardData.content_type} metadata={cardData.metadata} extractedText={cardData.extracted_text} />
       </div>
 
       <div className="card-content">

@@ -6,7 +6,7 @@ interface CardTypeSelectorProps {
 const cardTypes = [
   { id: 'social_link', label: 'Social Link', enabled: true },
   { id: 'pdf', label: 'PDF', enabled: true },
-  { id: 'docx', label: 'Word Document (coming soon)', enabled: false },
+  { id: 'docx', label: 'Word Document', enabled: true },
 ];
 
 export default function CardTypeSelector({

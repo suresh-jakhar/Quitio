@@ -2,7 +2,7 @@ import { Router, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import * as cardService from '../services/cardService';
 import { validateCard, validateCardUpdate } from '../utils/validators';
-import { pdfUpload } from '../middleware/fileUpload';
+import { pdfUpload, docxUpload } from '../middleware/fileUpload';
 import multer from 'multer';
 
 const router = Router();
@@ -125,6 +125,69 @@ router.post(
       }
 
       const card = await cardService.createPdfCard(req.userId!, {
+        filePath: file.path,
+        originalName: file.originalname,
+        tags,
+      });
+
+      // Fetch tags for response
+      const cardTags = await cardService.getCardTags(card.id, req.userId!);
+
+      res.status(201).json({
+        ...card,
+        tags: cardTags,
+      });
+    } catch (err: any) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * POST /cards/ingest/docx - Upload DOCX and create card (Phase 12)
+ */
+router.post(
+  '/ingest/docx',
+  (req: AuthRequest, res: Response, next: NextFunction) => {
+    docxUpload.single('file')(req as any, res as any, (err: any) => {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            code: 400,
+            message: 'File is too large. Maximum allowed size is 50 MB.',
+          });
+        }
+        return res.status(400).json({ code: 400, message: err.message });
+      }
+      if (err) {
+        return res.status(400).json({ code: 400, message: err.message });
+      }
+      next();
+    });
+  },
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const file = (req as any).file as Express.Multer.File | undefined;
+
+      if (!file) {
+        return res.status(400).json({
+          code: 400,
+          message: 'No file uploaded. Please provide a DOCX file in the "file" field.',
+        });
+      }
+
+      // Parse tags from JSON string (sent as FormData field)
+      let tags: string[] = [];
+      if (req.body.tags) {
+        try {
+          const parsed = JSON.parse(req.body.tags);
+          tags = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          // Ignore parse error – treat as no tags
+        }
+      }
+
+      const card = await cardService.createDocxCard(req.userId!, {
         filePath: file.path,
         originalName: file.originalname,
         tags,
