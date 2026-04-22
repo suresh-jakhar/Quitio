@@ -1,7 +1,7 @@
 import logging
 import psycopg
 from pgvector.psycopg import register_vector
-from typing import List, Tuple, Any
+from typing import List, Tuple, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -25,31 +25,55 @@ class VectorStore:
             logger.error(f"Error storing embedding for card {card_id}: {e}")
             raise
 
-    def find_similar_cards(self, embedding: List[float], user_id: str = None, limit: int = 10) -> List[Tuple[str, str, str, float]]:
+    def find_similar_cards(self, 
+                           embedding: List[float], 
+                           user_id: str, 
+                           tags: Optional[List[str]] = None, 
+                           limit: int = 10) -> List[dict]:
         """
-        Find similar cards by embedding.
-        Returns: List of (id, title, content_type, similarity)
+        Find similar cards by embedding with optional filters.
+        Returns: List of card dictionaries with similarity scores.
         """
         try:
             with self.db_service.get_connection() as conn:
                 register_vector(conn)
                 with conn.cursor() as cur:
-                    query = """
-                        SELECT id, title, content_type, 1 - (embedding <=> %s) as similarity
-                        FROM cards
-                        WHERE embedding IS NOT NULL
+                    # Base query
+                    sql = """
+                        SELECT c.id, c.title, c.content_type, 1 - (c.embedding <=> %s) as similarity
+                        FROM cards c
+                        WHERE c.user_id = %s AND c.embedding IS NOT NULL
                     """
-                    params = [embedding]
+                    params = [embedding, user_id]
 
-                    if user_id:
-                        query += " AND user_id = %s"
-                        params.append(user_id)
+                    # Tag filter
+                    if tags and len(tags) > 0:
+                        sql += """
+                            AND c.id IN (
+                                SELECT DISTINCT ct.card_id 
+                                FROM card_tags ct
+                                JOIN tags t ON ct.tag_id = t.id
+                                WHERE t.name = ANY(%s)
+                            )
+                        """
+                        params.append(tags)
 
-                    query += " ORDER BY embedding <=> %s LIMIT %s"
+                    # Sorting and limit
+                    sql += " ORDER BY c.embedding <=> %s LIMIT %s"
                     params.extend([embedding, limit])
 
-                    cur.execute(query, params)
-                    results = cur.fetchall()
+                    cur.execute(sql, params)
+                    rows = cur.fetchall()
+                    
+                    # Convert to list of dicts for API response
+                    results = []
+                    for row in rows:
+                        results.append({
+                            "id": str(row[0]),
+                            "title": row[1],
+                            "content_type": row[2],
+                            "similarity": float(row[3])
+                        })
             return results
         except Exception as e:
             logger.error(f"Error finding similar cards: {e}")
@@ -60,11 +84,7 @@ class VectorStore:
         try:
             with self.db_service.get_connection() as conn:
                 with conn.cursor() as cur:
-                    # Enable pgvector extension
                     cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
-                    # Create IVFFlat index for cosine similarity
-                    # Note: 'lists' parameter should be tuned based on dataset size
-                    # For small datasets, 100 is a good starting point.
                     cur.execute("""
                         CREATE INDEX IF NOT EXISTS idx_cards_embedding ON cards 
                         USING ivfflat (embedding vector_cosine_ops) 
@@ -74,4 +94,3 @@ class VectorStore:
             logger.info("pgvector index initialized successfully.")
         except Exception as e:
             logger.error(f"Error initializing pgvector index: {e}")
-            # Don't raise here, as it might fail if already exists or during dev
