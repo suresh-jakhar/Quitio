@@ -40,20 +40,47 @@ export interface UpdateCardDTO {
 export const getUserCards = async (
   userId: string,
   page: number = 1,
-  limit: number = 20
+  limit: number = 20,
+  tagId?: string
 ): Promise<{ cards: Card[]; total: number; page: number }> => {
   const offset = (page - 1) * limit;
 
-  const countResult = await pool.query('SELECT COUNT(*) FROM cards WHERE user_id = $1', [userId]);
+  let countQuery = 'SELECT COUNT(*) FROM cards c WHERE c.user_id = $1';
+  let dataQuery = 'SELECT c.* FROM cards c WHERE c.user_id = $1';
+  const queryParams: any[] = [userId];
+
+  if (tagId) {
+    countQuery = `
+      SELECT COUNT(*) FROM cards c
+      JOIN card_tags ct ON c.id = ct.card_id
+      WHERE c.user_id = $1 AND ct.tag_id = $2
+    `;
+    dataQuery = `
+      SELECT c.* FROM cards c
+      JOIN card_tags ct ON c.id = ct.card_id
+      WHERE c.user_id = $1 AND ct.tag_id = $2
+    `;
+    queryParams.push(tagId);
+  }
+
+  const countResult = await pool.query(countQuery, queryParams);
   const total = parseInt(countResult.rows[0].count);
 
-  const result = await pool.query(
-    `SELECT * FROM cards WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
-    [userId, limit, offset]
+  dataQuery += ` ORDER BY c.created_at DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+  const dataParams = [...queryParams, limit, offset];
+
+  const result = await pool.query(dataQuery, dataParams);
+
+  // Fetch tags for each card
+  const cardsWithTags = await Promise.all(
+    result.rows.map(async (card) => {
+      const tags = await getCardTags(card.id, userId);
+      return { ...card, tags };
+    })
   );
 
   return {
-    cards: result.rows,
+    cards: cardsWithTags,
     total,
     page,
   };

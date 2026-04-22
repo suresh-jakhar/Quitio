@@ -224,7 +224,12 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
       });
     }
 
-    const result = await cardService.getUserCards(req.userId!, page, limit);
+    let tagId = Array.isArray(req.query.tag_id) ? (req.query.tag_id as string[])[0] : (req.query.tag_id as string | undefined);
+    if (tagId === 'undefined' || tagId === 'null' || tagId === '') {
+      tagId = undefined;
+    }
+
+    const result = await cardService.getUserCards(req.userId!, page, limit, tagId);
 
     res.status(200).json({
       cards: result.cards,

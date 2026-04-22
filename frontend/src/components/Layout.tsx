@@ -6,9 +6,10 @@ import { LogoIcon, HomeIcon, TagIcon, SearchIcon, ChatIcon } from './icons';
 interface LayoutProps {
   children: ReactNode;
   title?: string;
+  sidebarContent?: ReactNode;
 }
 
-export default function Layout({ children, title }: LayoutProps): JSX.Element {
+export default function Layout({ children, title, sidebarContent }: LayoutProps): JSX.Element {
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -65,18 +66,22 @@ export default function Layout({ children, title }: LayoutProps): JSX.Element {
               <HomeIcon /> Home
             </div>
           </div>
-          <div className="sidebar-section">
-            <div className="sidebar-title">Coming Soon</div>
-            <div className="sidebar-item" style={{ opacity: 0.5, cursor: 'default', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <TagIcon /> Tags
+          {sidebarContent ? (
+            sidebarContent
+          ) : (
+            <div className="sidebar-section">
+              <div className="sidebar-title">Coming Soon</div>
+              <div className="sidebar-item" style={{ opacity: 0.5, cursor: 'default', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <TagIcon /> Tags
+              </div>
+              <div className="sidebar-item" style={{ opacity: 0.5, cursor: 'default', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <SearchIcon /> Search
+              </div>
+              <div className="sidebar-item" style={{ opacity: 0.5, cursor: 'default', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <ChatIcon /> Chat
+              </div>
             </div>
-            <div className="sidebar-item" style={{ opacity: 0.5, cursor: 'default', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <SearchIcon /> Search
-            </div>
-            <div className="sidebar-item" style={{ opacity: 0.5, cursor: 'default', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <ChatIcon /> Chat
-            </div>
-          </div>
+          )}
         </aside>
 
         {/* Main Content */}

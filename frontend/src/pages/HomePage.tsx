@@ -8,27 +8,46 @@ import Spinner from '../components/Spinner';
 import AddCardModal from '../components/AddCardModal';
 import { PlusIcon, XIcon } from '../components/icons';
 import useCards, { CardData } from '../hooks/useCards';
+import useCardFilter from '../hooks/useCardFilter';
+import useTags from '../hooks/useTags';
+import Sidebar from '../components/Sidebar';
 
 export default function HomePage(): JSX.Element {
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const { cards, loading, error, page, totalPages, hasMore, loadMore, refetch } = useCards(20);
+  const { selectedTag, setSelectedTag } = useCardFilter();
+  const { cards, loading, error, page, totalPages, hasMore, loadMore, refetch } = useCards(20, selectedTag);
+  const { tags, loading: tagsLoading, error: tagsError, refreshTags } = useTags();
 
   const handleCardClick = (card: CardData) => {
     setSelectedCard(card);
   };
 
   const handleTagClick = (tagId: string) => {
-    console.log('Tag clicked:', tagId);
+    setSelectedTag(tagId);
   };
 
   const handleCardAdded = async () => {
     await refetch();
+    await refreshTags();
   };
 
   return (
-    <Layout title="Home">
+    <Layout 
+      title="Home"
+      sidebarContent={
+        <div className="sidebar-section">
+          <Sidebar 
+            selectedTag={selectedTag} 
+            onSelectTag={setSelectedTag} 
+            tags={tags}
+            loading={tagsLoading}
+            error={tagsError}
+          />
+        </div>
+      }
+    >
       <div style={{ maxWidth: '1400px' }}>
         <div
           style={{

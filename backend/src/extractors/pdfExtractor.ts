@@ -1,8 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-
 import { PDFParse } from 'pdf-parse';
-
 
 export interface PdfExtractionResult {
   text: string;

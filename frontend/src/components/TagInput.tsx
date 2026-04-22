@@ -38,6 +38,13 @@ export default function TagInput({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const handleBlur = () => {
+    if (inputValue.trim()) {
+      handleSelect(inputValue);
+    }
+    // Note: setIsFocused(false) is handled by handleClickOutside to allow clicking suggestions
+  };
+
   const handleSelect = async (tagName: string) => {
     const trimmed = tagName.trim();
     if (!trimmed || value.includes(trimmed)) {
@@ -102,6 +109,7 @@ export default function TagInput({
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onFocus={() => setIsFocused(true)}
+          onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           placeholder={value.length === 0 ? "Type to add tags..." : ""}

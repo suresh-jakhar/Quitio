@@ -32,7 +32,7 @@ interface UseCardsResult {
   refetch: () => Promise<void>;
 }
 
-const useCards = (initialLimit = 20): UseCardsResult => {
+const useCards = (initialLimit = 20, tagId?: string | null): UseCardsResult => {
   const [cards, setCards] = useState<CardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +40,7 @@ const useCards = (initialLimit = 20): UseCardsResult => {
   const [total, setTotal] = useState(0);
   const [limit] = useState(initialLimit);
 
-  const fetchCards = async (currentPage: number) => {
+  const fetchCards = async (currentPage: number, currentTagId?: string | null) => {
     try {
       setLoading(true);
       setError(null);
@@ -49,6 +49,7 @@ const useCards = (initialLimit = 20): UseCardsResult => {
         params: {
           page: currentPage,
           limit,
+          tag_id: currentTagId || undefined,
         },
       });
 
@@ -72,15 +73,15 @@ const useCards = (initialLimit = 20): UseCardsResult => {
   };
 
   useEffect(() => {
-    fetchCards(1);
-  }, []);
+    fetchCards(1, tagId);
+  }, [tagId]);
 
   const loadMore = () => {
-    fetchCards(page + 1);
+    fetchCards(page + 1, tagId);
   };
 
   const refetch = async () => {
-    await fetchCards(1);
+    await fetchCards(1, tagId);
   };
 
   const totalPages = Math.ceil(total / limit);
