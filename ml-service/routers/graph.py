@@ -7,6 +7,8 @@ from services.vector_store import VectorStore
 from services.graph_store import GraphStore
 from services.graph_builder import GraphBuilder
 
+from services.graph_query import GraphQuery
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -16,6 +18,11 @@ def get_graph_builder():
     vector_store = VectorStore(db_service)
     graph_store = GraphStore(db_service)
     return GraphBuilder(vector_store, graph_store)
+
+def get_graph_query():
+    db_service = DBService()
+    graph_store = GraphStore(db_service)
+    return GraphQuery(graph_store, db_service)
 
 class GraphBuildRequest(BaseModel):
     user_id: str = Field(..., description="The UUID of the user to rebuild the graph for.")
@@ -51,3 +58,27 @@ async def build_graph(
     except Exception as e:
         logger.error(f"Error starting graph build: {e}")
         raise HTTPException(status_code=500, detail="Failed to initiate graph build.")
+
+@router.get("/neighbors/{card_id}")
+async def get_neighbors(
+    card_id: str,
+    depth: int = 2,
+    limit: int = 20,
+    query_service: GraphQuery = Depends(get_graph_query)
+):
+    """
+    Retrieve related cards for a given card ID by traversing the knowledge graph.
+    Supports multi-hop traversal with score decay.
+    """
+    try:
+        logger.info(f"Fetching neighbors for card {card_id} with depth {depth}")
+        neighbors = query_service.get_neighbors(card_id, depth=depth, limit=limit)
+        
+        return {
+            "source_card_id": card_id,
+            "neighbors": neighbors,
+            "count": len(neighbors)
+        }
+    except Exception as e:
+        logger.error(f"Error fetching neighbors for card {card_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch neighbors.")
