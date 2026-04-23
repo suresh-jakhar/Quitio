@@ -189,6 +189,16 @@ class VectorStore:
                             setweight(to_tsvector('english', COALESCE(extracted_text, '')), 'B')
                         ))
                     """)
+
+                    # 5. Ensure graph_edges has edge_type column
+                    cur.execute("""
+                        ALTER TABLE graph_edges 
+                        ADD COLUMN IF NOT EXISTS edge_type VARCHAR(50)
+                    """)
+
+                    # 6. Ensure indices on graph_edges for fast retrieval
+                    cur.execute("CREATE INDEX IF NOT EXISTS idx_graph_edges_source ON graph_edges(source_card_id)")
+                    cur.execute("CREATE INDEX IF NOT EXISTS idx_graph_edges_target ON graph_edges(target_card_id)")
                 conn.commit()
             logger.info("pgvector and FTS database structure initialized successfully.")
         except Exception as e:

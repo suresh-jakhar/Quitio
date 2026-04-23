@@ -9,7 +9,7 @@ class GraphStore:
         self.db_service = db_service
 
     def add_edge(self, source_id: str, target_id: str, 
-                 similarity: float, reason: str):
+                 similarity: float, edge_type: str, reason: str):
         """
         Add or update an edge in the graph_edges table.
         """
@@ -19,12 +19,17 @@ class GraphStore:
                     cur.execute(
                         """
                         INSERT INTO graph_edges 
-                        (source_card_id, target_card_id, similarity_score, reason)
-                        VALUES (%s, %s, %s, %s)
+                        (source_card_id, target_card_id, similarity_score, edge_type, reason)
+                        VALUES (%s, %s, %s, %s, %s)
                         ON CONFLICT (source_card_id, target_card_id) 
-                        DO UPDATE SET similarity_score = %s, reason = %s, created_at = NOW()
+                        DO UPDATE SET 
+                            similarity_score = %s, 
+                            edge_type = %s, 
+                            reason = %s, 
+                            created_at = NOW()
                         """,
-                        (source_id, target_id, similarity, reason, similarity, reason)
+                        (source_id, target_id, similarity, edge_type, reason, 
+                         similarity, edge_type, reason)
                     )
                 conn.commit()
         except Exception as e:
@@ -62,7 +67,7 @@ class GraphStore:
                 with conn.cursor() as cur:
                     cur.execute(
                         """
-                        SELECT target_card_id, similarity_score, reason
+                        SELECT target_card_id, similarity_score, edge_type, reason
                         FROM graph_edges
                         WHERE source_card_id = %s
                         ORDER BY similarity_score DESC
@@ -77,7 +82,8 @@ class GraphStore:
                         results.append({
                             "target_id": str(row[0]),
                             "similarity": float(row[1]),
-                            "reason": row[2]
+                            "edge_type": row[2],
+                            "reason": row[3]
                         })
             return results
         except Exception as e:

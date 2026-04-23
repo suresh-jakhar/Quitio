@@ -39,15 +39,11 @@ class GraphBuilder:
         
         edge_count = 0
         
-        # 3. Compute relationships (O(N^2) complexity, acceptable for small user collections)
+        # 3. Compute relationships
         for i, card_a in enumerate(cards):
             for j, card_b in enumerate(cards):
                 if i == j:
                     continue
-                
-                # We calculate edges in both directions if needed, 
-                # but similarity is symmetric. However, the graph_edges table 
-                # expects source and target.
                 
                 # Check semantic similarity
                 semantic_score = self.compute_cosine_similarity(
@@ -65,26 +61,28 @@ class GraphBuilder:
                 
                 if is_semantic or is_tag_based:
                     reasons = []
-                    # Final score is a combination or we just pick one?
-                    # Phase 25 pseudo-code suggests adding edges based on criteria.
-                    # We'll use the max score and combine reasons.
+                    edge_type = 'hybrid'
                     
-                    if is_semantic:
+                    if is_semantic and is_tag_based:
+                        edge_type = 'hybrid'
                         reasons.append(f"Semantic similarity: {semantic_score:.2f}")
-                    
-                    if is_tag_based:
-                        tag_names = ", ".join(list(shared_tags))
-                        reasons.append(f"Shared tags: {tag_names}")
+                        reasons.append(f"Shared tags: {', '.join(list(shared_tags))}")
+                    elif is_semantic:
+                        edge_type = 'semantic'
+                        reasons.append(f"Semantic similarity: {semantic_score:.2f}")
+                    else:
+                        edge_type = 'tag_based'
+                        reasons.append(f"Shared tags: {', '.join(list(shared_tags))}")
                     
                     # Store the edge
-                    # We use semantic score as the primary similarity if available, 
-                    # else a normalized tag score.
-                    final_score = semantic_score if is_semantic else (len(shared_tags) / max(len(tags_a), 1))
+                    # Primary score is semantic similarity if available
+                    final_score = float(semantic_score) if is_semantic else float(len(shared_tags) / max(len(tags_a), 1))
                     
                     self.graph_store.add_edge(
                         source_id=card_a['id'],
                         target_id=card_b['id'],
-                        similarity=float(final_score),
+                        similarity=final_score,
+                        edge_type=edge_type,
                         reason="; ".join(reasons)
                     )
                     edge_count += 1
