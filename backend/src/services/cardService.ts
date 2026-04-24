@@ -6,7 +6,183 @@ import { extractFromPdf } from '../extractors/pdfExtractor';
 import { extractFromDocx } from '../extractors/docxExtractor';
 import { cleanupTempFile } from '../extractors/storageService';
 import { extractText } from './textExtractionService';
-import { generateAndStoreEmbedding } from './mlService';
+import { generateAndStoreEmbedding, triggerGraphBuild, triggerIncrementalGraphUpdate, deleteCardEdges } from './mlService';
+
+const STOPWORDS = new Set([
+  'the', 'and', 'for', 'with', 'from', 'that', 'this', 'these', 'those',
+  'which', 'where', 'when', 'who', 'how', 'what', 'why', 'can', 'will',
+  'would', 'should', 'could', 'been', 'have', 'has', 'had', 'are', 'was',
+  'were', 'but', 'not', 'your', 'their', 'our', 'all', 'any', 'some',
+  'more', 'most', 'than', 'very', 'too', 'also', 'into', 'onto', 'upon',
+  'about', 'around', 'between', 'among', 'through', 'during', 'before',
+  'after', 'its', 'their', 'such', 'other', 'many', 'more', 'most',
+  'well', 'does', 'did', 'being', 'been', 'increasingly', 'designed', 'mimic'
+]);
+
+function toTitleCase(str: string): string {
+  return str.replace(
+    /\w\S*/g,
+    (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+  );
+}
+
+function generateSmartTitle(text: string): { title: string; keywords: string[] } {
+  if (!text) return { title: '', keywords: [] };
+
+  // 1. Clean text
+  const cleaned = text
+    .replace(/\S+@\S+/g, '') // remove emails
+    .replace(/\+?\d[\d\-\s]{7,}\d/g, '') // remove phones
+    .replace(/https?:\/\/\S+|www\.\S+/g, '') // remove urls
+    .replace(/[^\w\s]/g, ' ') // remove special chars
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const words = cleaned.toLowerCase().split(' ');
+  const freqMap: Record<string, number> = {};
+
+  // 2. Extract keywords (focus on first 1000 words for performance)
+  const maxWords = Math.min(words.length, 1000);
+  for (let i = 0; i < maxWords; i++) {
+    const word = words[i];
+    if (word.length > 3 && !STOPWORDS.has(word)) {
+      freqMap[word] = (freqMap[word] || 0) + 1;
+    }
+  }
+
+  // Sort by frequency, then by first appearance
+  const sortedKeywords = Object.keys(freqMap).sort((a, b) => {
+    if (freqMap[b] !== freqMap[a]) return freqMap[b] - freqMap[a];
+    return words.indexOf(a) - words.indexOf(b);
+  });
+
+  const topKeywords = sortedKeywords.slice(0, 3);
+  if (topKeywords.length === 0) return { title: '', keywords: [] };
+
+  // Re-order based on first appearance to maintain some natural order
+  const finalKeywords = [...topKeywords].sort((a, b) => words.indexOf(a) - words.indexOf(b));
+
+  return {
+    title: toTitleCase(finalKeywords.join(' ')),
+    keywords: topKeywords
+  };
+}
+
+function isMeaningfulFilename(name: string): boolean {
+  // Strip extension
+  const bare = name.replace(/\.(pdf|docx?|txt)$/i, '').trim();
+  
+  // Meaningless if: only digits/dashes/underscores
+  if (/^[\d\-_]+$/.test(bare)) return false;
+  
+  // Meaningless if it matches "file-xxxx" or similar auto-gen patterns
+  if (/^file-[\d\-]+/.test(bare.toLowerCase())) return false;
+  if (/^untitled/i.test(bare)) return false;
+  if (/^document\d*/i.test(bare)) return false;
+  
+  // Meaningless if it looks like a hash or ID (hex/alphanumeric with mixed case but no spaces)
+  if (/^[0-9a-fA-F]{12,}$/.test(bare)) return false;
+  if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}/.test(bare)) return false;
+  
+  if (bare.length < 3) return false;
+  return true;
+}
+
+
+
+/**
+ * Extracts a smart, human-readable title from document content.
+ * Priority:
+ *  1. originalName — if it looks like a real filename (not random numbers)
+ *  2. First meaningful sentence from extracted text
+ *  3. First N characters of extracted text
+ *  4. Fallback: 'Untitled Document'
+ */
+export function extractSmartTitle(
+  extractedText: string | null | undefined,
+  originalName: string,
+  pdfMetaTitle?: string | null
+): string {
+  let finalTitle = 'Untitled Document';
+  let extractedFrom = 'none';
+
+  // 1. PDF metadata title is most reliable if it exists, is short, and isn't garbage
+  if (pdfMetaTitle && pdfMetaTitle.trim().length > 3 && !pdfMetaTitle.includes('/') && !pdfMetaTitle.includes('\\')) {
+    const wordCount = pdfMetaTitle.trim().split(/\s+/).length;
+    if (isMeaningfulFilename(pdfMetaTitle) && wordCount >= 2 && wordCount <= 5) {
+      finalTitle = pdfMetaTitle.trim();
+      extractedFrom = 'pdf-metadata';
+    }
+  }
+
+
+  // 2. Use the original filename if it's meaningful and short
+  if (extractedFrom === 'none' && isMeaningfulFilename(originalName)) {
+    const bare = originalName.replace(/\.(pdf|docx?|txt)$/i, '').trim();
+    const wordCount = bare.split(/[-_\s]+/).length;
+    
+    if (wordCount >= 2 && wordCount <= 5) {
+      finalTitle = bare
+        .replace(/[-_]+/g, ' ')             // dashes/underscores → spaces
+        .replace(/\s+/g, ' ')
+        .trim();
+      extractedFrom = 'filename';
+    }
+  }
+
+
+
+  // 3. Derive title from content
+  let keywords: string[] = [];
+  if (extractedFrom === 'none' || finalTitle.length < 5) {
+    const text = (extractedText || '').replace(/\s+/g, ' ').trim();
+    if (text) {
+      const result = generateSmartTitle(text);
+      if (result.title) {
+        finalTitle = result.title;
+        keywords = result.keywords;
+        extractedFrom = 'content-keywords';
+      }
+    }
+  }
+
+  // 4. Clean and Limit (Double check for garbage in metadata/filenames)
+  let cleaned = finalTitle;
+  if (extractedFrom !== 'content-keywords') {
+      cleaned = finalTitle
+        .replace(/\b\d{4}-\d{2}-\d{2}\b/g, '')
+        .replace(/\b\d{10,}\b/g, '')
+        .replace(/\b[0-9a-f]{20,}\b/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+        
+      // Ensure Title Case for all derived titles
+      cleaned = toTitleCase(cleaned);
+
+      // Limit to 2-5 words for all titles
+      const words = cleaned.split(' ');
+      if (words.length > 5) {
+        cleaned = words.slice(0, 5).join(' ');
+      }
+  }
+
+  // Final fallback
+  if (!cleaned || cleaned.length < 3) {
+      cleaned = originalName.toLowerCase().includes('pdf') ? 'PDF Document' : 'Uploaded File';
+  }
+
+  console.log("--- Title Extraction ---");
+  console.log("Original filename:", originalName);
+  console.log("Original text:", (extractedText || '').slice(0, 100));
+  console.log("Extracted from:", extractedFrom);
+  console.log("Extracted keywords:", keywords);
+  console.log("FINAL TITLE BEFORE SAVE:", cleaned);
+  console.log("------------------------");
+
+  return cleaned;
+}
+
+
 
 export interface Card {
   id: string;
@@ -177,7 +353,9 @@ export const createCard = async (userId: string, data: CreateCardDTO): Promise<C
   // Trigger embedding generation in background
   if (card.extracted_text) {
     // We don't await this to keep response time fast
-    generateAndStoreEmbedding(cardId, card.extracted_text);
+    generateAndStoreEmbedding(cardId, card.extracted_text).then(() => {
+      triggerIncrementalGraphUpdate(cardId, userId);
+    });
   }
 
   return card;
@@ -230,7 +408,12 @@ export const updateCard = async (
 
   const result = await pool.query(query, values);
 
-  return result.rows[0] || null;
+  const updatedCard = result.rows[0];
+  if (updatedCard) {
+    triggerIncrementalGraphUpdate(cardId, userId);
+  }
+
+  return updatedCard || null;
 };
 
 /**
@@ -242,7 +425,11 @@ export const deleteCard = async (cardId: string, userId: string): Promise<boolea
     userId,
   ]);
 
-  return result.rowCount! > 0;
+  if (result.rowCount! > 0) {
+    deleteCardEdges(cardId);
+    return true;
+  }
+  return false;
 };
 
 /**
@@ -277,6 +464,8 @@ export const addTagsToCard = async (userId: string, cardId: string, tagNames: st
       // Ignore duplicate key error
     }
   }
+  // Trigger incremental graph update after adding tags (boosts edges)
+  triggerIncrementalGraphUpdate(cardId, userId);
 };
 
 /**
@@ -316,6 +505,59 @@ export const getCardTags = async (cardId: string, userId: string): Promise<any[]
 };
 
 /**
+ * Set (replace) ALL tags on a card atomically.
+ * Creates tags that don't exist yet, then links them.
+ */
+export const setCardTags = async (
+  userId: string,
+  cardId: string,
+  tagNames: string[]
+): Promise<void> => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Remove all existing card_tags entries for this card
+    await client.query(
+      `DELETE FROM card_tags WHERE card_id = $1`,
+      [cardId]
+    );
+
+    // 2. For each tag name: get-or-create the tag, then link it
+    for (const name of tagNames) {
+      const trimmed = name.trim();
+      if (!trimmed) continue;
+
+      // Upsert tag
+      const tagRes = await client.query(
+        `INSERT INTO tags (id, user_id, name, created_at)
+         VALUES (gen_random_uuid(), $1, $2, NOW())
+         ON CONFLICT (user_id, name) DO UPDATE SET name = EXCLUDED.name
+         RETURNING id`,
+        [userId, trimmed]
+      );
+      const tagId = tagRes.rows[0].id;
+
+      // Link tag to card
+      await client.query(
+        `INSERT INTO card_tags (card_id, tag_id) VALUES ($1, $2)
+         ON CONFLICT DO NOTHING`,
+        [cardId, tagId]
+      );
+    }
+
+    await client.query('COMMIT');
+    // Trigger incremental graph update after updating tags
+    triggerIncrementalGraphUpdate(cardId, userId);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+/**
  * Create card from an uploaded PDF file (Phase 11)
  */
 export const createPdfCard = async (
@@ -334,8 +576,10 @@ export const createPdfCard = async (
     cleanupTempFile(data.filePath);
   }
 
+  const cleanedText = extraction.text.replace(/\s+/g, ' ').trim();
+
   const card = await createCard(userId, {
-    title: extraction.metadata.title || data.originalName || 'Untitled PDF',
+    title: extractSmartTitle(cleanedText, data.originalName, extraction.metadata.title),
     content_type: 'pdf',
     raw_content: data.originalName,
     extracted_text: extraction.text.replace(/\s+/g, ' ').trim(), // Clean text
@@ -371,11 +615,13 @@ export const createDocxCard = async (
     cleanupTempFile(data.filePath);
   }
 
+  const cleanedDocxText = extraction.text.replace(/\s+/g, ' ').trim();
+
   const card = await createCard(userId, {
-    title: extraction.metadata.title || data.originalName || 'Untitled DOCX',
+    title: extractSmartTitle(cleanedDocxText, data.originalName, extraction.metadata.title),
     content_type: 'docx',
     raw_content: data.originalName,
-    extracted_text: extraction.text.replace(/\s+/g, ' ').trim(), // Clean text
+    extracted_text: cleanedDocxText,
     metadata: {
       word_count: extraction.word_count,
       file_size: extraction.metadata.file_size,
@@ -383,6 +629,7 @@ export const createDocxCard = async (
     },
     tags: data.tags,
   });
+
 
   return card;
 };
@@ -400,7 +647,7 @@ export const createSocialLinkCard = async (
   const metadata = await extractSocialMetadata(data.url);
 
   const card = await createCard(userId, {
-    title: metadata.title || 'Untitled',
+    title: (metadata.title || 'Untitled').trim() === 'Untitled' ? 'Web Link' : (metadata.title || 'Web Link'),
     content_type: 'social_link',
     raw_content: data.url,
     extracted_text: `${metadata.title || ''}\n${metadata.og_description || ''}`.replace(/\s+/g, ' ').trim(),

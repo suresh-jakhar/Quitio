@@ -20,6 +20,10 @@ class EmbeddingService:
         try:
             # text.strip() to ensure no leading/trailing whitespace issues
             embedding = self.model.encode(text.strip())
+            # Ensure L2 normalization for consistent cosine similarity
+            norm = np.linalg.norm(embedding)
+            if norm > 0:
+                embedding = embedding / norm
             return embedding.tolist()
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
@@ -41,7 +45,11 @@ class EmbeddingService:
         try:
             logger.debug(f"Generating embeddings for batch of {len(valid_texts)} texts.")
             embeddings = self.model.encode(valid_texts)
-            return embeddings.tolist()
+            # Ensure L2 normalization for each embedding in the batch
+            norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+            norms = np.where(norms == 0, 1e-10, norms)
+            normalized_embeddings = embeddings / norms
+            return normalized_embeddings.tolist()
         except Exception as e:
             logger.error(f"Error in batch embedding: {e}")
             raise

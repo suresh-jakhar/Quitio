@@ -8,33 +8,39 @@ class GraphStore:
     def __init__(self, db_service: DBService):
         self.db_service = db_service
 
-    def add_edge(self, source_id: str, target_id: str, 
+    def add_edge(self, source_id: str, target_id: str,
                  similarity: float, edge_type: str, reason: str):
+        """Add or update a single edge (kept for backward compat)."""
+        self.batch_add_edges([(source_id, target_id, similarity, edge_type, reason)])
+
+    def batch_add_edges(self, edges: list):
         """
-        Add or update an edge in the graph_edges table.
+        Batch-insert a list of (source_id, target_id, score, edge_type, reason) tuples
+        in a SINGLE transaction. Much faster than one INSERT per edge.
         """
+        if not edges:
+            return
         try:
             with self.db_service.get_connection() as conn:
                 with conn.cursor() as cur:
-                    cur.execute(
+                    cur.executemany(
                         """
-                        INSERT INTO graph_edges 
+                        INSERT INTO graph_edges
                         (source_card_id, target_card_id, similarity_score, edge_type, reason)
                         VALUES (%s::uuid, %s::uuid, %s, %s, %s)
-                        ON CONFLICT (source_card_id, target_card_id) 
-                        DO UPDATE SET 
-                            similarity_score = %s, 
-                            edge_type = %s, 
-                            reason = %s, 
-                            created_at = NOW()
+                        ON CONFLICT (source_card_id, target_card_id)
+                        DO UPDATE SET
+                            similarity_score = EXCLUDED.similarity_score,
+                            edge_type        = EXCLUDED.edge_type,
+                            reason           = EXCLUDED.reason,
+                            created_at       = NOW()
                         """,
-                        (source_id, target_id, similarity, edge_type, reason, 
-                         similarity, edge_type, reason)
+                        edges
                     )
                 conn.commit()
-                logger.debug(f"[GraphStore] Edge saved: {source_id} -> {target_id} | score={similarity:.4f} | type={edge_type}")
+            logger.info(f"[GraphStore] Batch inserted {len(edges)} edges.")
         except Exception as e:
-            logger.error(f"[GraphStore] Error adding edge {source_id} -> {target_id}: {e}")
+            logger.error(f"[GraphStore] Error in batch_add_edges: {e}")
             raise
 
     def delete_user_edges(self, user_id: str):
@@ -57,6 +63,24 @@ class GraphStore:
             logger.info(f"Deleted old graph edges for user {user_id}")
         except Exception as e:
             logger.error(f"Error deleting edges for user {user_id}: {e}")
+            raise
+
+    def delete_card_edges(self, card_id: str):
+        """
+        Delete all edges associated with a specific card (both as source and target).
+        Used for incremental updates.
+        """
+        try:
+            with self.db_service.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM graph_edges WHERE source_card_id = %s OR target_card_id = %s",
+                        (card_id, card_id)
+                    )
+                conn.commit()
+            logger.info(f"Deleted edges for card {card_id}")
+        except Exception as e:
+            logger.error(f"Error deleting edges for card {card_id}: {e}")
             raise
 
     def get_neighbors(self, card_id: str, limit: int = 10) -> List[dict]:

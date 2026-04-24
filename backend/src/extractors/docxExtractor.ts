@@ -33,7 +33,7 @@ export async function extractFromDocx(filePath: string): Promise<DocxExtractionR
     text: cleanText,
     word_count: wordCount,
     metadata: {
-      title: path.basename(filePath, path.extname(filePath)) || 'Untitled',
+      title: '',
       file_size: stat.size,
     },
   };

@@ -8,7 +8,7 @@ from utils.logging import setup_logging
 from services.model_loader import ModelLoader
 from services.vector_store import VectorStore
 from services.db_service import DBService
-from routers import health, embed, search, graph, rag
+from routers import health, embed, search, graph, rag, arrange
 
 # Setup logging
 setup_logging()
@@ -58,6 +58,7 @@ app.include_router(embed.router, prefix="/embed", tags=["Embeddings"])
 app.include_router(search.router, prefix="/search", tags=["Search"])
 app.include_router(graph.router, prefix="/graph", tags=["Graph"])
 app.include_router(rag.router, prefix="/rag", tags=["RAG"])
+app.include_router(arrange.router, prefix="/arrange", tags=["Arrange"])
 
 if __name__ == "__main__":
     import uvicorn

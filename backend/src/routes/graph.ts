@@ -1,9 +1,10 @@
 import { Router, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import axios from 'axios';
+import config from '../config';
 
 const router = Router();
-const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+const ML_SERVICE_URL = config.ML_SERVICE_URL;
 
 /**
  * POST /graph/build

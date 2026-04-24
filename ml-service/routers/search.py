@@ -7,6 +7,8 @@ import logging
 from services.embedding_service import EmbeddingService
 from services.vector_store import VectorStore
 from services.db_service import DBService
+from services.graph_store import GraphStore
+from services.graph_query import GraphQuery
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -22,6 +24,12 @@ def get_db_service():
 
 def get_vector_store():
     return VectorStore(get_db_service())
+
+def get_graph_store():
+    return GraphStore(get_db_service())
+
+def get_graph_query():
+    return GraphQuery(get_graph_store(), get_db_service())
 
 class VectorSearchRequest(BaseModel):
     query: str = Field(..., description="The natural language query string.")
@@ -215,3 +223,39 @@ async def hybrid_search(
     except Exception as e:
         logger.error(f"Hybrid search endpoint error: {e}")
         raise HTTPException(status_code=500, detail="Hybrid search failed.")
+@router.post("/smart", response_model=SearchResponse)
+async def smart_search(
+    request: VectorSearchRequest,
+    embed_service: EmbeddingService = Depends(get_embedding_service),
+    vector_store: VectorStore = Depends(get_vector_store),
+    query_service: GraphQuery = Depends(get_graph_query)
+):
+    """
+    Advanced Query Engine: semantic search augmented by graph traversal.
+    Finds seeds via vector search and then discovers related context via the graph.
+    """
+    try:
+        logger.info(f"[DEBUG-ML] Incoming smart search for user {request.user_id}: \"{request.query}\"")
+        
+        # 1. Embed the query
+        query_embedding = embed_service.embed_text(request.query)
+        
+        # 2. Use Query Engine for expansion and re-ranking
+        results = query_service.search_with_graph(
+            query_embedding=query_embedding,
+            user_id=request.user_id,
+            vector_store=vector_store,
+            top_k=request.top_k,
+            query_text=request.query
+        )
+        
+        logger.info(f"[DEBUG-ML] Smart search returned {len(results)} graph-augmented results.")
+        
+        return SearchResponse(
+            query=request.query,
+            results=results,
+            count=len(results)
+        )
+    except Exception as e:
+        logger.error(f"Smart search endpoint error: {e}")
+        raise HTTPException(status_code=500, detail="Smart search failed.")

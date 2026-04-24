@@ -82,3 +82,36 @@ async def get_neighbors(
     except Exception as e:
         logger.error(f"Error fetching neighbors for card {card_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch neighbors.")
+
+@router.post("/incremental-update")
+async def incremental_update(
+    card_id: str,
+    user_id: str,
+    background_tasks: BackgroundTasks,
+    builder: GraphBuilder = Depends(get_graph_builder)
+):
+    """
+    Triggers an incremental update of the knowledge graph for a single card.
+    """
+    try:
+        logger.info(f"Received incremental graph update request for card: {card_id}")
+        background_tasks.add_task(builder.update_card_edges, card_id=card_id, user_id=user_id)
+        return {"status": "accepted", "message": "Incremental graph update started"}
+    except Exception as e:
+        logger.error(f"Error starting incremental update: {e}")
+        raise HTTPException(status_code=500, detail="Failed to initiate incremental update.")
+
+@router.delete("/card/{card_id}")
+async def delete_card_edges(
+    card_id: str,
+    builder: GraphBuilder = Depends(get_graph_builder)
+):
+    """
+    Removes a card and its associated edges from the knowledge graph.
+    """
+    try:
+        builder.graph_store.delete_card_edges(card_id)
+        return {"status": "success", "message": f"Edges for card {card_id} deleted"}
+    except Exception as e:
+        logger.error(f"Error deleting card edges: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete card edges.")

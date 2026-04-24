@@ -38,10 +38,13 @@ class VectorStore:
             with self.db_service.get_connection() as conn:
                 register_vector(conn)
                 with conn.cursor() as cur:
-                    # Base query
+                    # Base query with tags
                     sql = """
-                        SELECT c.id, c.title, c.content_type, 1 - (c.embedding <=> %s::vector) as similarity
+                        SELECT c.id, c.title, c.content_type, 1 - (c.embedding <=> %s::vector) as similarity,
+                               ARRAY_AGG(t.name) as tags
                         FROM cards c
+                        LEFT JOIN card_tags ct ON c.id = ct.card_id
+                        LEFT JOIN tags t ON ct.tag_id = t.id
                         WHERE c.user_id = %s AND c.embedding IS NOT NULL
                     """
                     params = [embedding, user_id]
@@ -59,7 +62,7 @@ class VectorStore:
                         params.append(tags)
 
                     # Sorting and limit
-                    sql += " ORDER BY c.embedding <=> %s::vector LIMIT %s"
+                    sql += " GROUP BY c.id ORDER BY c.embedding <=> %s::vector LIMIT %s"
                     params.extend([embedding, limit])
 
                     cur.execute(sql, params)
@@ -72,7 +75,8 @@ class VectorStore:
                             "id": str(row[0]),
                             "title": row[1],
                             "content_type": row[2],
-                            "similarity": float(row[3])
+                            "similarity": float(row[3]),
+                            "tags": [tag for tag in row[4] if tag is not None]
                         })
             return results
         except Exception as e:
@@ -169,11 +173,11 @@ class VectorStore:
                         ADD COLUMN IF NOT EXISTS embedding vector(384)
                     """)
                     
-                    # 3. Create IVFFlat index for faster retrieval
+                    # 3. Create HNSW index for faster and more robust retrieval
+                    cur.execute("DROP INDEX IF EXISTS idx_cards_embedding")
                     cur.execute("""
-                        CREATE INDEX IF NOT EXISTS idx_cards_embedding ON cards 
-                        USING ivfflat (embedding vector_cosine_ops) 
-                        WITH (lists = 100)
+                        CREATE INDEX idx_cards_embedding ON cards 
+                        USING hnsw (embedding vector_cosine_ops)
                     """)
 
                     # 4. Recreate GIN index for Full-Text Search with corrected expression.
@@ -195,6 +199,9 @@ class VectorStore:
                     # 6. Ensure indices on graph_edges for fast retrieval
                     cur.execute("CREATE INDEX IF NOT EXISTS idx_graph_edges_source ON graph_edges(source_card_id)")
                     cur.execute("CREATE INDEX IF NOT EXISTS idx_graph_edges_target ON graph_edges(target_card_id)")
+
+                    # 7. Add centrality column to cards for ranking
+                    cur.execute("ALTER TABLE cards ADD COLUMN IF NOT EXISTS centrality FLOAT DEFAULT 0.0")
                 conn.commit()
             logger.info("pgvector and FTS database structure initialized successfully.")
         except Exception as e:

@@ -8,6 +8,7 @@ import cardRoutes from './routes/cards';
 import tagRoutes from './routes/tags';
 import searchRoutes from './routes/search';
 import graphRoutes from './routes/graph';
+import arrangeRoutes from './routes/arrange';
 import database from './utils/database';
 
 const app: Express = express();
@@ -28,6 +29,7 @@ app.use('/cards', authMiddleware, cardRoutes);
 app.use('/tags', authMiddleware, tagRoutes);
 app.use('/search', authMiddleware, searchRoutes); // Phase 17: keyword search
 app.use('/graph', authMiddleware, graphRoutes); // Phase 25+: Knowledge Graph
+app.use('/arrange', authMiddleware, arrangeRoutes); // Smart Arrange
 
 // Error handler (must be last)
 app.use(errorHandler);

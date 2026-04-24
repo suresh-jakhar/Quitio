@@ -42,7 +42,7 @@ export async function extractFromPdf(filePath: string): Promise<PdfExtractionRes
     text: cleanText,
     page_count: data.numpages || 0,
     metadata: {
-      title: info.Title || path.basename(filePath, path.extname(filePath)) || 'Untitled',
+      title: info.Title || '',
       author: info.Author || 'Unknown',
       created_date: info.CreationDate ? String(info.CreationDate) : null,
       file_size: stat.size,

@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Button from './Button';
-import { LogoIcon, HomeIcon, TagIcon, SearchIcon, ChatIcon } from './icons';
+import { LogoIcon, HomeIcon } from './icons';
 
 interface LayoutProps {
   children: ReactNode;
@@ -11,6 +11,9 @@ interface LayoutProps {
 
 export default function Layout({ children, title, sidebarContent }: LayoutProps): JSX.Element {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isHome = location.pathname === '/';
+  const isSmartArrange = location.pathname === '/smart-arrange';
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -59,29 +62,28 @@ export default function Layout({ children, title, sidebarContent }: LayoutProps)
           <div className="sidebar-section">
             <div className="sidebar-title">Navigation</div>
             <div
-              className="sidebar-item active"
+              className={`sidebar-item ${isHome ? 'active' : ''}`}
               onClick={() => navigate('/')}
               style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
               <HomeIcon /> Home
             </div>
-          </div>
-          {sidebarContent ? (
-            sidebarContent
-          ) : (
-            <div className="sidebar-section">
-              <div className="sidebar-title">Coming Soon</div>
-              <div className="sidebar-item" style={{ opacity: 0.5, cursor: 'default', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <TagIcon /> Tags
-              </div>
-              <div className="sidebar-item" style={{ opacity: 0.5, cursor: 'default', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <SearchIcon /> Search
-              </div>
-              <div className="sidebar-item" style={{ opacity: 0.5, cursor: 'default', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <ChatIcon /> Chat
-              </div>
+            <div
+              id="nav-smart-arrange"
+              className={`sidebar-item ${isSmartArrange ? 'active' : ''}`}
+              onClick={() => navigate('/smart-arrange')}
+              style={{
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                color: isSmartArrange ? 'var(--color-primary)' : undefined,
+              }}
+            >
+              🧠 Smart Arrange
             </div>
-          )}
+          </div>
+          {sidebarContent}
         </aside>
 
         {/* Main Content */}

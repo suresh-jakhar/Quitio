@@ -1,6 +1,8 @@
 import axios from 'axios';
+import config from '../config';
 
-const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+const ML_SERVICE_URL = config.ML_SERVICE_URL;
+
 
 export interface VectorSearchResponse {
   query: string;
@@ -59,9 +61,6 @@ export const vectorSearch = async (
     throw new Error('Semantic search service is currently unavailable.');
   }
 };
-/**
- * Perform hybrid search combining vector similarity and keyword relevance.
- */
 export const hybridSearch = async (
   query: string,
   userId: string,
@@ -81,5 +80,45 @@ export const hybridSearch = async (
   } catch (err: any) {
     console.error(`[ML-Integration] Hybrid search failed: ${err.message}`);
     throw new Error('Hybrid search service is currently unavailable.');
+  }
+};
+
+export const triggerGraphBuild = async (userId: string): Promise<void> => {
+  try {
+    await axios.post(`${ML_SERVICE_URL}/graph/build`, {
+      user_id: userId,
+      semantic_threshold: 0.7,
+      top_k: 20
+    });
+    console.log(`[ML-Integration] Full graph build triggered for user ${userId}`);
+  } catch (err: any) {
+    console.error(`[ML-Integration] Failed to trigger graph build: ${err.message}`);
+  }
+};
+
+/**
+ * Trigger an incremental graph update for a single card.
+ */
+export const triggerIncrementalGraphUpdate = async (cardId: string, userId: string): Promise<void> => {
+  try {
+    await axios.post(`${ML_SERVICE_URL}/graph/incremental-update`, {
+      card_id: cardId,
+      user_id: userId
+    });
+    console.log(`[ML-Integration] Incremental graph update triggered for card ${cardId}`);
+  } catch (err: any) {
+    console.error(`[ML-Integration] Failed to trigger incremental update: ${err.message}`);
+  }
+};
+
+/**
+ * Delete edges for a card from the knowledge graph.
+ */
+export const deleteCardEdges = async (cardId: string): Promise<void> => {
+  try {
+    await axios.delete(`${ML_SERVICE_URL}/graph/card/${cardId}`);
+    console.log(`[ML-Integration] Edges deleted for card ${cardId}`);
+  } catch (err: any) {
+    console.error(`[ML-Integration] Failed to delete card edges: ${err.message}`);
   }
 };

@@ -14,6 +14,7 @@ import Sidebar from '../components/Sidebar';
 import useSearch from '../hooks/useSearch';
 import SearchBar from '../components/SearchBar';
 import SearchResults from '../components/SearchResults';
+import TagEditor from '../components/TagEditor';
 
 export default function HomePage() {
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
@@ -216,6 +217,23 @@ export default function HomePage() {
                   isDetail={true}
                   onTagClick={handleTagClick}
                 />
+
+                {/* Tag Editor — inline add/remove tags */}
+                <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: '16px', marginTop: '8px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '8px' }}>
+                    🏷️ Edit Tags
+                  </div>
+                  <TagEditor
+                    cardId={selectedCard.id}
+                    initialTags={selectedCard.tags || []}
+                    allUserTags={tags}
+                    onTagsUpdated={(updatedTags) => {
+                      setSelectedCard({ ...selectedCard, tags: updatedTags });
+                      refetch();
+                      refreshTags();
+                    }}
+                  />
+                </div>
               </div>
             </div>
           </div>

@@ -440,6 +440,33 @@ router.post('/:id/tags', async (req: AuthRequest, res: Response, next: NextFunct
 });
 
 /**
+ * PUT /cards/:id/tags - Replace ALL tags on a card with a new set.
+ * Body: { tagNames: string[] }  — tag names (created if they don't exist)
+ */
+router.put('/:id/tags', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const cardId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const { tagNames } = req.body;
+
+    if (!Array.isArray(tagNames)) {
+      return res.status(400).json({ code: 400, message: 'tagNames array is required' });
+    }
+
+    const card = await cardService.getCardById(cardId, req.userId!);
+    if (!card) {
+      return res.status(404).json({ code: 404, message: 'Card not found' });
+    }
+
+    await cardService.setCardTags(req.userId!, cardId, tagNames);
+    const updatedTags = await cardService.getCardTags(cardId, req.userId!);
+
+    res.status(200).json({ tags: updatedTags });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * DELETE /cards/:id/tags/:tagId - Remove a tag from a card
  */
 router.delete('/:id/tags/:tagId', async (req: AuthRequest, res: Response, next: NextFunction) => {
