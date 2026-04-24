@@ -20,6 +20,7 @@ import re
 from collections import defaultdict, Counter
 import networkx as nx
 import numpy as np
+from pgvector.psycopg import register_vector
 
 from services.db_service import DBService
 
@@ -241,11 +242,12 @@ async def smart_arrange(request: SmartArrangeRequest):
 
     try:
         with db.get_connection() as conn:
+            register_vector(conn)
             with conn.cursor() as cur:
 
                 # ── 1. Fetch all cards ──────────────────────────────────────
                 cur.execute("""
-                    SELECT id, title, content_type, extracted_text, metadata
+                    SELECT id, title, content_type, extracted_text, metadata, embedding
                     FROM cards
                     WHERE user_id = %s
                     ORDER BY created_at DESC
@@ -266,6 +268,7 @@ async def smart_arrange(request: SmartArrangeRequest):
                         "content_type": r[2],
                         "extracted_text": r[3],
                         "metadata": r[4] or {},
+                        "embedding": r[5],
                         "tags": [],
                     }
                     for r in rows
@@ -323,25 +326,97 @@ async def smart_arrange(request: SmartArrangeRequest):
             for tgt, weight in targets.items():
                 G.add_edge(src, tgt, weight=weight)
                 
-        # resolution > 1.0 favors more, smaller communities. 1.15 is a good balance.
-        communities = nx.algorithms.community.louvain_communities(G, weight='weight', resolution=1.15)
-        logger.info(f"[DEBUG-Arrange] Communities detected: {len(communities)}")
-        
-        # ── 6. Map nodes to cluster names ───────────────────────────────────
-        all_labels: Dict[str, str] = {}
-        cluster_name_cache: Dict[int, str] = {}
-        
-        # Precompute corpus-wide word frequencies for naming
+        # resolution < 1.0 favors fewer, larger communities.
+        communities = list(nx.algorithms.community.louvain_communities(G, weight='weight', resolution=0.5))
+        logger.info(f"[DEBUG-Arrange] Adjacency nodes: {list(G.nodes)}")
+        logger.info(f"[DEBUG-Arrange] Adjacency edges: {list(G.edges(data=True))}")
+        logger.info(f"[DEBUG-Arrange] Raw Louvain communities ({len(communities)}): {[list(c) for c in communities]}")
 
+        # Step 5: Merge Logic (Fix Singleton Clusters)
+        MIN_CLUSTER_SIZE = 3
+        
+        # Helper to compute centroid
+        def get_centroid(cids: Set[str]) -> np.ndarray:
+            embs = [np.array(card_map[cid]["embedding"]) for cid in cids if cid in card_map and card_map[cid].get("embedding") is not None]
+            if not embs: return np.zeros(384) # Match all-MiniLM-L6-v2 dimension
+            return np.mean(embs, axis=0)
+
+        # 1. Separate large and small
+        large_communities = [c for c in communities if len(c) >= MIN_CLUSTER_SIZE]
+        small_communities = [c for c in communities if len(c) < MIN_CLUSTER_SIZE]
+        
+        final_communities = []
+        
+        if large_communities:
+            # Merge small into closest large
+            final_communities = [set(c) for c in large_communities]
+            centroids = [get_centroid(c) for c in final_communities]
+            
+            for small in small_communities:
+                small_centroid = get_centroid(small)
+                # Find closest large cluster via cosine similarity (dot product of normalized)
+                best_idx = -1
+                best_sim = -1.0
+                
+                for idx, c_centroid in enumerate(centroids):
+                    # Simple dot product for normalized embeddings
+                    sim = np.dot(small_centroid, c_centroid) / (np.linalg.norm(small_centroid) * np.linalg.norm(c_centroid) + 1e-9)
+                    if sim > best_sim:
+                        best_sim = sim
+                        best_idx = idx
+                
+                if best_idx != -1:
+                    final_communities[best_idx].update(small)
+        else:
+            # No large clusters? Force merge singletons based on similarity
+            if communities:
+                logger.info(f"[DEBUG-Arrange] No large clusters found. Attempting aggressive merge on {len(communities)} small communities...")
+                final_communities = []
+                remaining = [set(c) for c in communities]
+                
+                while remaining:
+                    base = remaining.pop(0)
+                    base_centroid = get_centroid(base)
+                    
+                    to_merge = []
+                    for i, other in enumerate(remaining):
+                        other_centroid = get_centroid(other)
+                        # Cosine similarity
+                        norm_prod = (np.linalg.norm(base_centroid) * np.linalg.norm(other_centroid)) + 1e-9
+                        sim = np.dot(base_centroid, other_centroid) / norm_prod
+                        
+                        logger.info(f"[DEBUG-Arrange] Similarity between '{list(base)[:1]}' and '{list(other)[:1]}': {sim:.4f}")
+                        
+                        if sim > 0.25: # Aggressive threshold for forced merge
+                            to_merge.append(i)
+                    
+                    # Merge all matching ones into base
+                    for i in sorted(to_merge, reverse=True):
+                        base.update(remaining.pop(i))
+                    
+                    final_communities.append(base)
+            else:
+                final_communities = []
+
+        logger.info(f"[DEBUG-Arrange] Final merged communities: {len(final_communities)}")
+        
+        # ── 6. Optimize: Pre-tokenize all cards once ────────────────────────
+        tokenized_cards = {}
         corpus_words = []
         for cid, card in card_map.items():
-            title_tokens = [w.lower() for w in re.findall(r'[a-zA-Z]{4,}', card["title"])]
-            text_tokens = [w.lower() for w in re.findall(r'[a-zA-Z]{4,}', card.get("extracted_text", "") or "")][:500]
-            corpus_words.extend(title_tokens + text_tokens)
+            # Use smaller chunks for performance
+            tokens = clean_text_for_keywords((card["title"] + " " + (card.get("extracted_text", "") or ""))[:1000])
+            tokenized_cards[cid] = tokens
+            corpus_words.extend(tokens)
+            
         corpus_freq = Counter(corpus_words)
         total_word_count = sum(corpus_freq.values())
 
-        for i, comm in enumerate(communities):
+        all_labels: Dict[str, str] = {}
+        cluster_name_cache: Dict[int, str] = {}
+
+        for i, comm in enumerate(final_communities):
+            # Pass pre-tokenized data if needed, or just let it use the current logic (which is now faster with smaller text)
             c_name = extract_tfidf_name(comm, card_map, corpus_freq, total_word_count)
             
             # Ensure unique names
@@ -352,7 +427,6 @@ async def smart_arrange(request: SmartArrangeRequest):
                 counter += 1
                 
             cluster_name_cache[i] = c_name
-            print(f"Final cluster name: {c_name}")
             for cid in comm:
                 all_labels[cid] = c_name
 

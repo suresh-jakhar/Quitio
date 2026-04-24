@@ -16,7 +16,7 @@ class GraphBuilder:
     def build_user_graph(
         self,
         user_id: str,
-        semantic_threshold: float = 0.7,
+        semantic_threshold: float = 0.5,
         top_k: Optional[int] = None,
     ):
         """
@@ -32,9 +32,9 @@ class GraphBuilder:
             return 0
 
         # Dynamic K: scales with N, but capped for performance
-        # 100 cards -> K=10, 1000 cards -> K=23, 10000 cards -> K=45
+        # User requested: min(30, max(15, log(N)*8))
         if top_k is None:
-            top_k = int(min(max(10, np.log(n) * 5), 50))
+            top_k = int(min(30, max(15, np.log(n) * 8)))
         
         logger.info(f"[GraphBuilder] Using dynamic K={top_k} for N={n} cards")
 
@@ -83,9 +83,18 @@ class GraphBuilder:
             logger.error(f"[GraphBuilder] Error computing PageRank: {e}")
 
         logger.info(f"[GraphBuilder] Done. Created {len(all_edges)} directed edges.")
+        
+        # LOG GRAPH STATS (Step 1)
+        if n > 0:
+            print(f"--- GRAPH STATS ---")
+            print(f"Total nodes: {n}")
+            print(f"Total edges: {len(all_edges)}")
+            print(f"Avg edges per node: {len(all_edges)/n:.2f}")
+            print(f"-------------------")
+
         return len(all_edges)
 
-    def update_card_edges(self, card_id: str, user_id: str, semantic_threshold: float = 0.7):
+    def update_card_edges(self, card_id: str, user_id: str, semantic_threshold: float = 0.5):
         """
         Incremental update: compute edges only for a single card.
         Ensures SYMMETRY by storing bidirectional edges.
@@ -111,7 +120,7 @@ class GraphBuilder:
                 cur.execute("SELECT count(*) FROM cards WHERE user_id = %s", (user_id,))
                 n = cur.fetchone()[0]
         
-        top_k = int(min(max(10, np.log(n) * 5), 50))
+        top_k = int(min(30, max(15, np.log(n) * 8)))
 
         # 3. Find top_k neighbors
         neighbors = self.vector_store.find_similar_cards(
@@ -152,11 +161,6 @@ class GraphBuilder:
             sem_score = n["similarity"]
             sim_scores.append(sem_score)
             
-            # STRICT CONTROL: No edge if below semantic threshold
-            if sem_score < threshold:
-                rejected_count += 1
-                continue
-
             target_tags = set(n.get("tags", []))
             shared = source_tags & target_tags
             
@@ -166,7 +170,19 @@ class GraphBuilder:
             edge_type = "hybrid" if tag_boost > 0 else "semantic"
             reason = f"sem_score: {sem_score:.3f}, shared_tags: {list(shared)}, boost: {tag_boost:.3f}"
             
-            edges.append((source_id, target_id, final_score, edge_type, reason))
+            # Step 4: Minimum Edge Rule
+            # If we don't have enough edges yet, force add the top ones anyway
+            # neighbors is already sorted by similarity from vector_store
+            if sem_score < threshold:
+                # If this is one of the top 2 neighbors, we keep it anyway to prevent isolation
+                if len(edges) < 2:
+                    reason += f" (FORCE: min_edge_rule)"
+                    edges.append((source_id, target_id, final_score, edge_type, reason))
+                else:
+                    rejected_count += 1
+                    continue
+            else:
+                edges.append((source_id, target_id, final_score, edge_type, reason))
         
         if sim_scores:
             avg_sim = sum(sim_scores) / len(sim_scores)

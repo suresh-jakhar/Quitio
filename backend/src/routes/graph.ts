@@ -13,14 +13,14 @@ const ML_SERVICE_URL = config.ML_SERVICE_URL;
 router.post('/build', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const userId = req.userId;
-    const { semantic_threshold = 0.7, min_shared_tags = 1 } = req.body;
+    const { semantic_threshold = 0.5, top_k = null } = req.body;
     
     console.log(`[Backend] Triggering graph build for user ${userId} (threshold: ${semantic_threshold})...`);
     
     const response = await axios.post(`${ML_SERVICE_URL}/graph/build`, {
       user_id: userId,
       semantic_threshold,
-      min_shared_tags
+      top_k
     });
     
     return res.status(202).json({

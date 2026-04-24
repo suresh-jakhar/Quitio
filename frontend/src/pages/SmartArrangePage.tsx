@@ -31,6 +31,7 @@ function SmartCard({
   palette,
   rank,
   onCardClick,
+  onDeleteCard,
 }: {
   card: ArrangedCard;
   palette: (typeof CLUSTER_PALETTES)[0];
@@ -209,6 +210,7 @@ function ClusterRowView({
   cluster,
   palette,
   onCardClick,
+  onDeleteCard,
 }: {
   cluster: ClusterRow;
   palette: (typeof CLUSTER_PALETTES)[0];

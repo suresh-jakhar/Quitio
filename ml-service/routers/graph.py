@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel, Field
+from typing import Optional, List
 import logging
 
 from services.db_service import DBService
@@ -26,8 +27,8 @@ def get_graph_query():
 
 class GraphBuildRequest(BaseModel):
     user_id: str = Field(..., description="The UUID of the user to rebuild the graph for.")
-    semantic_threshold: float = Field(0.7, ge=0.0, le=1.0, description="Minimum similarity score to create a semantic edge.")
-    min_shared_tags: int = Field(1, ge=1, description="Minimum number of shared tags to create an edge.")
+    semantic_threshold: float = Field(0.5, ge=0.0, le=1.0, description="Minimum similarity score to create a semantic edge.")
+    top_k: Optional[int] = Field(None, description="Number of neighbors per node.")
 
 @router.post("/build")
 async def build_graph(
@@ -47,7 +48,7 @@ async def build_graph(
             builder.build_user_graph,
             user_id=request.user_id,
             semantic_threshold=request.semantic_threshold,
-            min_shared_tags=request.min_shared_tags
+            top_k=request.top_k
         )
         
         return {

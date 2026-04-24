@@ -422,21 +422,6 @@ export const updateCard = async (
   return updatedCard || null;
 };
 
-/**
- * Delete a card
- */
-export const deleteCard = async (cardId: string, userId: string): Promise<boolean> => {
-  const result = await pool.query('DELETE FROM cards WHERE id = $1 AND user_id = $2', [
-    cardId,
-    userId,
-  ]);
-
-  if (result.rowCount! > 0) {
-    deleteCardEdges(cardId);
-    return true;
-  }
-  return false;
-};
 
 /**
  * Add tags to a card
