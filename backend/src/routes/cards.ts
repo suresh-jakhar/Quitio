@@ -124,6 +124,12 @@ router.post(
         }
       }
 
+      console.log('[Ingest] PDF Upload:', {
+        originalname: file.originalname,
+        filename: file.filename,
+        path: file.path
+      });
+
       const card = await cardService.createPdfCard(req.userId!, {
         filePath: file.path,
         originalName: file.originalname,
@@ -186,6 +192,12 @@ router.post(
           // Ignore parse error – treat as no tags
         }
       }
+
+      console.log('[Ingest] DOCX Upload:', {
+        originalname: file.originalname,
+        filename: file.filename,
+        path: file.path
+      });
 
       const card = await cardService.createDocxCard(req.userId!, {
         filePath: file.path,

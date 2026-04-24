@@ -978,3 +978,62 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* ===== Delete Actions ===== */
+.card-delete-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: var(--space-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  opacity: 0; /* Hidden by default, shown on hover */
+}
+
+.card-component:hover .card-delete-btn {
+  opacity: 1;
+}
+
+.card-delete-btn:hover {
+  background-color: #fee2e2;
+  color: var(--color-danger);
+}
+
+.grid-delete-btn {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  background-color: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow-sm);
+  z-index: 10;
+}
+
+.card-delete-btn-detail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 8px 16px;
+  background-color: var(--color-white);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.card-delete-btn-detail:hover {
+  background-color: #fee2e2;
+  color: var(--color-danger);
+  border-color: #fca5a5;
+}
+
+.card-delete-btn-detail svg {
+  width: 16px;
+  height: 16px;
+}

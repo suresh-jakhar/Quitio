@@ -9,6 +9,7 @@ interface SearchResultsProps {
   error: string | null;
   onCardClick: (card: CardData) => void;
   onTagClick: (tagId: string) => void;
+  onDeleteCard?: (cardId: string) => void;
   viewMode: 'grid' | 'list';
   onViewModeChange: (mode: 'grid' | 'list') => void;
 }
@@ -24,6 +25,7 @@ export default function SearchResults({
   error,
   onCardClick,
   onTagClick,
+  onDeleteCard,
   viewMode,
   onViewModeChange,
 }: SearchResultsProps) {
@@ -96,6 +98,7 @@ export default function SearchResults({
         viewMode={viewMode}
         onCardClick={onCardClick}
         onTagClick={onTagClick}
+        onDeleteCard={onDeleteCard}
         onViewModeChange={onViewModeChange}
       />
     </>

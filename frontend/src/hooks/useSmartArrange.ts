@@ -44,5 +44,30 @@ export const useSmartArrange = () => {
     }
   }, []);
 
-  return { data, loading, error, fetch };
+  const deleteCard = useCallback(async (cardId: string) => {
+    try {
+      await api.delete(`/cards/${cardId}`);
+      // Optimistically update local state by removing card from all clusters
+      if (data) {
+        const updatedClusters = data.clusters.map(cluster => ({
+          ...cluster,
+          cards: cluster.cards.filter(card => card.id !== cardId),
+          card_count: cluster.cards.filter(card => card.id !== cardId).length
+        })).filter(cluster => cluster.card_count > 0);
+        
+        setData({
+          ...data,
+          total_cards: data.total_cards - 1,
+          cluster_count: updatedClusters.length,
+          clusters: updatedClusters
+        });
+      }
+      return true;
+    } catch (err: any) {
+      console.error('Failed to delete card from smart arrange:', err);
+      return false;
+    }
+  }, [data]);
+
+  return { data, loading, error, fetch, deleteCard };
 };

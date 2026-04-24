@@ -72,19 +72,26 @@ function isMeaningfulFilename(name: string): boolean {
   // Strip extension
   const bare = name.replace(/\.(pdf|docx?|txt)$/i, '').trim();
   
-  // Meaningless if: only digits/dashes/underscores
-  if (/^[\d\-_]+$/.test(bare)) return false;
-  
   // Meaningless if it matches "file-xxxx" or similar auto-gen patterns
   if (/^file-[\d\-]+/.test(bare.toLowerCase())) return false;
+  
+  // Meaningless if: only digits/dashes/underscores (often timestamps or IDs)
+  if (/^[\d\-_]+$/.test(bare)) return false;
+  
+  // Meaningless if it's "Untitled" or "Document"
   if (/^untitled/i.test(bare)) return false;
   if (/^document\d*/i.test(bare)) return false;
   
-  // Meaningless if it looks like a hash or ID (hex/alphanumeric with mixed case but no spaces)
+  // Meaningless if it looks like a long hex hash or UUID
   if (/^[0-9a-fA-F]{12,}$/.test(bare)) return false;
   if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}/.test(bare)) return false;
   
+  // If it has spaces, it's almost certainly a human-written title
+  if (bare.includes(' ')) return true;
+  
+  // If it's very short and lacks meaning
   if (bare.length < 3) return false;
+  
   return true;
 }
 
@@ -103,6 +110,8 @@ export function extractSmartTitle(
   originalName: string,
   pdfMetaTitle?: string | null
 ): string {
+  console.log('[extractSmartTitle] Start:', { originalName, pdfMetaTitle, extractedTextLength: extractedText?.length });
+  
   let finalTitle = 'Untitled Document';
   let extractedFrom = 'none';
 
@@ -115,22 +124,20 @@ export function extractSmartTitle(
     }
   }
 
-
-  // 2. Use the original filename if it's meaningful and short
+  // 2. Use the original filename if it's meaningful
   if (extractedFrom === 'none' && isMeaningfulFilename(originalName)) {
     const bare = originalName.replace(/\.(pdf|docx?|txt)$/i, '').trim();
-    const wordCount = bare.split(/[-_\s]+/).length;
     
-    if (wordCount >= 2 && wordCount <= 5) {
-      finalTitle = bare
-        .replace(/[-_]+/g, ' ')             // dashes/underscores → spaces
-        .replace(/\s+/g, ' ')
-        .trim();
-      extractedFrom = 'filename';
-    }
+    // Clean up common separators
+    finalTitle = bare
+      .replace(/[-_]+/g, ' ')             // dashes/underscores → spaces
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    extractedFrom = 'filename';
   }
 
-
+  console.log('[extractSmartTitle] After Step 1&2:', { finalTitle, extractedFrom });
 
   // 3. Derive title from content
   let keywords: string[] = [];
@@ -145,6 +152,8 @@ export function extractSmartTitle(
       }
     }
   }
+
+  console.log('[extractSmartTitle] After Step 3:', { finalTitle, extractedFrom, keywords });
 
   // 4. Clean and Limit (Double check for garbage in metadata/filenames)
   let cleaned = finalTitle;
@@ -166,18 +175,15 @@ export function extractSmartTitle(
       }
   }
 
-  // Final fallback
-  if (!cleaned || cleaned.length < 3) {
+  console.log('[extractSmartTitle] After Step 4 (cleaned):', { cleaned });
+
+  // Final fallback if we still have a garbage title
+  if (!cleaned || cleaned.length < 3 || /^file-[\d\-]+/.test(cleaned.toLowerCase())) {
+      console.log('[extractSmartTitle] Garbage detected, using fallback');
       cleaned = originalName.toLowerCase().includes('pdf') ? 'PDF Document' : 'Uploaded File';
   }
 
-  console.log("--- Title Extraction ---");
-  console.log("Original filename:", originalName);
-  console.log("Original text:", (extractedText || '').slice(0, 100));
-  console.log("Extracted from:", extractedFrom);
-  console.log("Extracted keywords:", keywords);
-  console.log("FINAL TITLE BEFORE SAVE:", cleaned);
-  console.log("------------------------");
+  console.log('[extractSmartTitle] Final:', cleaned);
 
   return cleaned;
 }
@@ -662,4 +668,39 @@ export const createSocialLinkCard = async (
   });
 
   return card;
+};
+
+/**
+ * Completely delete a card from the database and graph.
+ */
+export const deleteCard = async (cardId: string, userId: string): Promise<boolean> => {
+  try {
+    // 1. Verify card ownership and existence
+    const result = await pool.query(
+      "SELECT id FROM cards WHERE id = $1 AND user_id = $2",
+      [cardId, userId]
+    );
+
+    if (result.rows.length === 0) {
+      console.warn(`[CardService] Attempted to delete non-existent or unauthorized card: ${cardId}`);
+      return false;
+    }
+
+    console.log(`[CardService] Deleting card ${cardId} for user ${userId}...`);
+
+    // 2. Notify ML service to remove graph knowledge (edges)
+    // Even though DB has ON DELETE CASCADE, we call this to ensure
+    // ML service is aware of the deletion if it has any local state.
+    await deleteCardEdges(cardId);
+
+    // 3. Delete the card itself
+    // ON DELETE CASCADE handles tags and graph_edges in the DB
+    await pool.query("DELETE FROM cards WHERE id = $1", [cardId]);
+
+    console.log(`[CardService] Card ${cardId} deleted successfully.`);
+    return true;
+  } catch (err: any) {
+    console.error(`[CardService] Error deleting card: ${err.message}`);
+    throw err;
+  }
 };

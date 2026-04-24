@@ -9,6 +9,7 @@ interface CardGridProps {
   viewMode: 'grid' | 'list';
   onCardClick?: (card: CardData) => void;
   onTagClick?: (tagId: string) => void;
+  onDeleteCard?: (cardId: string) => void;
   onViewModeChange?: (mode: 'grid' | 'list') => void;
 }
 
@@ -17,6 +18,7 @@ export default function CardGrid({
   viewMode,
   onCardClick,
   onTagClick,
+  onDeleteCard,
   onViewModeChange,
 }: CardGridProps): JSX.Element {
   return (
@@ -50,6 +52,7 @@ export default function CardGrid({
               isListView={viewMode === 'list'}
               onClick={() => onCardClick?.(card)}
               onTagClick={onTagClick}
+              onDelete={onDeleteCard}
             />
           ))}
         </div>

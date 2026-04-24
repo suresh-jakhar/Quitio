@@ -31,6 +31,7 @@ interface UseCardsResult {
   loadMore: () => void;
   setPage: (page: number) => void;
   refetch: () => Promise<void>;
+  deleteCard: (cardId: string) => Promise<boolean>;
 }
 
 /**
@@ -119,6 +120,18 @@ const useCards = (
     loadMore,
     setPage: (newPage) => fetchCards(newPage, tagIds, filterMode),
     refetch,
+    deleteCard: async (cardId: string) => {
+      try {
+        await api.delete(`/cards/${cardId}`);
+        // Optimistically remove from state
+        setCards((prev) => prev.filter((c) => c.id !== cardId));
+        setTotal((prev) => prev - 1);
+        return true;
+      } catch (err) {
+        console.error('Failed to delete card:', err);
+        return false;
+      }
+    },
   };
 };
 

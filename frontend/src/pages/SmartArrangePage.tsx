@@ -36,6 +36,7 @@ function SmartCard({
   palette: (typeof CLUSTER_PALETTES)[0];
   rank: number;
   onCardClick: (id: string) => void;
+  onDeleteCard: (id: string, title: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const pct = Math.round(card.relevance_score * 100);
@@ -94,21 +95,44 @@ function SmartCard({
           </div>
 
           {/* Relevance pill */}
-          {pct > 0 && (
-            <span
-              style={{
-                fontSize: '10px',
-                fontWeight: 700,
-                padding: '2px 8px',
-                borderRadius: '999px',
-                background: palette.light,
-                color: palette.accent,
-                whiteSpace: 'nowrap',
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {pct > 0 && (
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  background: palette.light,
+                  color: palette.accent,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {pct}% match
+              </span>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteCard(card.id, card.title);
               }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: hovered ? '#ef4444' : 'transparent',
+                cursor: 'pointer',
+                padding: '4px',
+                borderRadius: '4px',
+                transition: 'all 200ms',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              title="Delete card"
             >
-              {pct}% match
-            </span>
-          )}
+              🗑️
+            </button>
+          </div>
         </div>
 
         {/* Title */}
@@ -124,7 +148,9 @@ function SmartCard({
             overflow: 'hidden',
           }}
         >
-          {card.title}
+          {card.title?.toLowerCase().startsWith('file-') 
+            ? (card.metadata?.original_name || card.metadata?.file_name || 'Uploaded Document').replace(/\.(pdf|docx?|doc)$/i, '')
+            : card.title}
         </div>
 
         {/* Excerpt */}
@@ -187,6 +213,7 @@ function ClusterRowView({
   cluster: ClusterRow;
   palette: (typeof CLUSTER_PALETTES)[0];
   onCardClick: (id: string) => void;
+  onDeleteCard: (id: string, title: string) => void;
 }) {
   return (
     <div
@@ -267,6 +294,7 @@ function ClusterRowView({
             palette={palette}
             rank={i}
             onCardClick={onCardClick}
+            onDeleteCard={onDeleteCard}
           />
         ))}
       </div>
@@ -277,7 +305,7 @@ function ClusterRowView({
 /* ─── Main Smart Arrange Page ─── */
 export default function SmartArrangePage() {
   const navigate = useNavigate();
-  const { data, loading, error, fetch } = useSmartArrange();
+  const { data, loading, error, fetch, deleteCard } = useSmartArrange();
 
   useEffect(() => {
     fetch();
@@ -286,6 +314,15 @@ export default function SmartArrangePage() {
   const handleCardClick = (cardId: string) => {
     // Navigate to home with the card highlighted (or open modal in future)
     navigate('/', { state: { highlightCard: cardId } });
+  };
+
+  const handleDeleteCard = async (cardId: string, title: string) => {
+    if (window.confirm(`Are you sure you want to delete "${title}"? This will permanently remove it from your knowledge graph.`)) {
+      const success = await deleteCard(cardId);
+      if (!success) {
+        alert('Failed to delete card. Please try again.');
+      }
+    }
   };
 
   return (
@@ -427,6 +464,7 @@ export default function SmartArrangePage() {
               cluster={cluster}
               palette={CLUSTER_PALETTES[idx % CLUSTER_PALETTES.length]}
               onCardClick={handleCardClick}
+              onDeleteCard={handleDeleteCard}
             />
           ))}
       </div>

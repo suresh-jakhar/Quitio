@@ -57,6 +57,7 @@ export default function HomePage() {
     hasMore,
     loadMore,
     refetch,
+    deleteCard,
   } = useCards(20, selectedTagIds.length > 0 ? selectedTagIds : null, filterMode);
 
   const { tags, loading: tagsLoading, error: tagsError, refreshTags } = useTags();
@@ -74,6 +75,18 @@ export default function HomePage() {
   const handleCardAdded = async () => {
     await refetch();
     await refreshTags();
+  };
+
+  const handleCardDelete = async (cardId: string) => {
+    const success = await deleteCard(cardId);
+    if (success) {
+      if (selectedCard?.id === cardId) {
+        setSelectedCard(null);
+      }
+      await refreshTags();
+    } else {
+      alert('Failed to delete card. Please try again.');
+    }
   };
 
   return (
@@ -136,6 +149,7 @@ export default function HomePage() {
             error={searchError}
             onCardClick={handleCardClick}
             onTagClick={handleTagClick}
+            onDeleteCard={handleCardDelete}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
           />
@@ -174,6 +188,7 @@ export default function HomePage() {
                   viewMode={viewMode}
                   onCardClick={handleCardClick}
                   onTagClick={handleTagClick}
+                  onDeleteCard={handleCardDelete}
                   onViewModeChange={setViewMode}
                 />
 
@@ -216,6 +231,7 @@ export default function HomePage() {
                   cardData={selectedCard}
                   isDetail={true}
                   onTagClick={handleTagClick}
+                  onDelete={handleCardDelete}
                 />
 
                 {/* Tag Editor — inline add/remove tags */}

@@ -4,7 +4,7 @@ import SourceLink from './SourceLink';
 import SocialLinkPreview from './cardPreviews/SocialLinkPreview';
 import PdfPreview from './cardPreviews/PdfPreview';
 import DocxPreview from './cardPreviews/DocxPreview';
-import { LinkIcon, DocumentIcon, FileIcon } from './icons';
+import { LinkIcon, DocumentIcon, FileIcon, TrashIcon } from './icons';
 
 interface CardTag {
   id: string;
@@ -26,6 +26,7 @@ interface CardProps {
   cardData: CardData;
   onClick?: (cardId: string) => void;
   onTagClick?: (tagId: string) => void;
+  onDelete?: (cardId: string) => void;
   isDetail?: boolean;
   isListView?: boolean;
 }
@@ -96,18 +97,37 @@ export default function Card({
   cardData,
   onClick,
   onTagClick,
+  onDelete,
   isDetail = false,
   isListView = false,
 }: CardProps): JSX.Element {
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (window.confirm(`Are you sure you want to delete "${cardData.title}"? This will permanently remove it from your knowledge graph and database.`)) {
+      onDelete?.(cardData.id);
+    }
+  };
   if (isDetail) {
-    // Detail View
+    const displayTitle = cardData.title?.toLowerCase().startsWith('file-') 
+      ? (cardData.metadata?.original_name || cardData.metadata?.file_name || 'Uploaded Document').replace(/\.(pdf|docx?|doc)$/i, '')
+      : cardData.title;
+
     return (
       <div className="card-component card-detail-view">
         <div className="card-detail-header">
           <div className="card-type-badge">
             {getContentTypeIcon(cardData.content_type)} {getContentTypeLabel(cardData.content_type)}
           </div>
-          <div className="card-detail-title">{cardData.title}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--space-md)' }}>
+            <div className="card-detail-title">{displayTitle}</div>
+            <button 
+              className="card-delete-btn-detail" 
+              onClick={handleDelete}
+              title="Delete card permanently"
+            >
+              <TrashIcon /> Delete
+            </button>
+          </div>
         </div>
 
         <div className="card-detail-meta">
@@ -191,7 +211,11 @@ export default function Card({
         </div>
 
         <div className="card-list-content">
-          <div className="card-list-title">{cardData.title}</div>
+          <div className="card-list-title">
+            {cardData.title?.toLowerCase().startsWith('file-') 
+              ? (cardData.metadata?.original_name || cardData.metadata?.file_name || 'Uploaded Document').replace(/\.(pdf|docx?|doc)$/i, '')
+              : cardData.title}
+          </div>
           <div className="card-list-meta">
             <span>{getContentTypeLabel(cardData.content_type)}</span>
             {cardData.created_at && <span>{formatDate(cardData.created_at)}</span>}
@@ -209,6 +233,16 @@ export default function Card({
               {cardData.extracted_text}
             </div>
           )}
+        </div>
+
+        <div className="card-list-actions">
+          <button 
+            className="card-delete-btn" 
+            onClick={handleDelete}
+            title="Delete card permanently"
+          >
+            <TrashIcon />
+          </button>
         </div>
 
         {cardData.tags && cardData.tags.length > 0 && (
@@ -243,13 +277,24 @@ export default function Card({
           extractedText={cardData.extracted_text} 
           createdAt={cardData.created_at}
         />
+        <button 
+          className="card-delete-btn grid-delete-btn" 
+          onClick={handleDelete}
+          title="Delete card permanently"
+        >
+          <TrashIcon />
+        </button>
       </div>
 
       <div className="card-content">
         <div className="card-type-badge">
           {getContentTypeIcon(cardData.content_type)} {getContentTypeLabel(cardData.content_type)}
         </div>
-        <div className="card-title">{cardData.title}</div>
+        <div className="card-title">
+          {cardData.title?.toLowerCase().startsWith('file-') 
+            ? (cardData.metadata?.original_name || cardData.metadata?.file_name || 'Uploaded Document').replace(/\.(pdf|docx?|doc)$/i, '')
+            : cardData.title}
+        </div>
         <div className="card-meta">{formatDate(cardData.created_at)}</div>
 
         {cardData.extracted_text && (
