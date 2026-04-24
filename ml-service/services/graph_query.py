@@ -1,5 +1,5 @@
 import logging
-from typing import List, dict, Set
+from typing import List, Dict, Set
 from services.graph_store import GraphStore
 from services.db_service import DBService
 

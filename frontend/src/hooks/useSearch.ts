@@ -15,7 +15,8 @@ interface UseSearchResult {
   clearSearch: () => void;
 }
 
-const DEBOUNCE_DELAY = 300; // ms
+const DEBOUNCE_DELAY = 300;        // ms — keyword search (fast, local DB)
+const SEMANTIC_DEBOUNCE_DELAY = 600; // ms — semantic search (remote ML inference)
 
 /**
  * Debounced keyword search hook (Phase 17).
@@ -89,10 +90,10 @@ export default function useSearch(
         return;
       }
 
-      // Debounce the actual API call
+      // Debounce the actual API call — longer delay for ML service calls
       debounceTimer.current = setTimeout(() => {
         runSearch(q);
-      }, DEBOUNCE_DELAY);
+      }, isSemantic ? SEMANTIC_DEBOUNCE_DELAY : DEBOUNCE_DELAY);
     },
     [runSearch]
   );

@@ -7,6 +7,7 @@ import authRoutes from './routes/auth';
 import cardRoutes from './routes/cards';
 import tagRoutes from './routes/tags';
 import searchRoutes from './routes/search';
+import graphRoutes from './routes/graph';
 import database from './utils/database';
 
 const app: Express = express();
@@ -26,6 +27,7 @@ app.use('/auth', authRoutes);
 app.use('/cards', authMiddleware, cardRoutes);
 app.use('/tags', authMiddleware, tagRoutes);
 app.use('/search', authMiddleware, searchRoutes); // Phase 17: keyword search
+app.use('/graph', authMiddleware, graphRoutes); // Phase 25+: Knowledge Graph
 
 // Error handler (must be last)
 app.use(errorHandler);

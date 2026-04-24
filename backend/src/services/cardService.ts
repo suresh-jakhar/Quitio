@@ -109,13 +109,30 @@ export const getUserCards = async (
 
   const result = await pool.query(dataQuery, dataParams);
 
-  // Fetch tags for each card
-  const cardsWithTags = await Promise.all(
-    result.rows.map(async (card) => {
-      const tags = await getCardTags(card.id, userId);
-      return { ...card, tags };
-    })
-  );
+  // Fetch tags for ALL returned cards in a single query (avoid N+1)
+  const cardIds = result.rows.map((r) => r.id);
+  let tagRows: any[] = [];
+  if (cardIds.length > 0) {
+    const tagsResult = await pool.query(
+      `SELECT ct.card_id, t.id, t.name
+       FROM card_tags ct
+       JOIN tags t ON ct.tag_id = t.id
+       WHERE ct.card_id = ANY($1::uuid[]) AND t.user_id = $2`,
+      [cardIds, userId]
+    );
+    tagRows = tagsResult.rows;
+  }
+
+  const tagsByCard = new Map<string, any[]>();
+  tagRows.forEach((row) => {
+    if (!tagsByCard.has(row.card_id)) tagsByCard.set(row.card_id, []);
+    tagsByCard.get(row.card_id)!.push({ id: row.id, name: row.name });
+  });
+
+  const cardsWithTags = result.rows.map((card) => ({
+    ...card,
+    tags: tagsByCard.get(card.id) || [],
+  }));
 
   return {
     cards: cardsWithTags,

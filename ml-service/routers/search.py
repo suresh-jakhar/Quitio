@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import List, Optional
+from functools import lru_cache
 import logging
 
 from services.embedding_service import EmbeddingService
@@ -10,13 +11,17 @@ from services.db_service import DBService
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Dependencies
+# Dependencies — cached singletons so objects are not re-created on every request
+@lru_cache(maxsize=1)
 def get_embedding_service():
     return EmbeddingService()
 
+@lru_cache(maxsize=1)
+def get_db_service():
+    return DBService()
+
 def get_vector_store():
-    db_service = DBService()
-    return VectorStore(db_service)
+    return VectorStore(get_db_service())
 
 class VectorSearchRequest(BaseModel):
     query: str = Field(..., description="The natural language query string.")

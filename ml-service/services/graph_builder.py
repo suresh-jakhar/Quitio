@@ -1,6 +1,6 @@
 import logging
 import numpy as np
-from typing import List, dict
+from typing import List, Dict
 from services.vector_store import VectorStore
 from services.graph_store import GraphStore
 

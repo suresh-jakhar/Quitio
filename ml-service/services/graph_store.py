@@ -20,7 +20,7 @@ class GraphStore:
                         """
                         INSERT INTO graph_edges 
                         (source_card_id, target_card_id, similarity_score, edge_type, reason)
-                        VALUES (%s, %s, %s, %s, %s)
+                        VALUES (%s::uuid, %s::uuid, %s, %s, %s)
                         ON CONFLICT (source_card_id, target_card_id) 
                         DO UPDATE SET 
                             similarity_score = %s, 
@@ -32,8 +32,9 @@ class GraphStore:
                          similarity, edge_type, reason)
                     )
                 conn.commit()
+                logger.debug(f"[GraphStore] Edge saved: {source_id} -> {target_id} | score={similarity:.4f} | type={edge_type}")
         except Exception as e:
-            logger.error(f"Error adding edge {source_id} -> {target_id}: {e}")
+            logger.error(f"[GraphStore] Error adding edge {source_id} -> {target_id}: {e}")
             raise
 
     def delete_user_edges(self, user_id: str):
@@ -63,19 +64,21 @@ class GraphStore:
         Fetch the most related cards for a given card ID.
         """
         try:
+            logger.info(f"[GraphStore] get_neighbors called for card_id={card_id!r} limit={limit}")
             with self.db_service.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         """
                         SELECT target_card_id, similarity_score, edge_type, reason
                         FROM graph_edges
-                        WHERE source_card_id = %s
+                        WHERE source_card_id = %s::uuid
                         ORDER BY similarity_score DESC
                         LIMIT %s
                         """,
                         (card_id, limit)
                     )
                     rows = cur.fetchall()
+                    logger.info(f"[GraphStore] Query returned {len(rows)} rows for card_id={card_id!r}")
                     
                     results = []
                     for row in rows:
@@ -87,5 +90,5 @@ class GraphStore:
                         })
             return results
         except Exception as e:
-            logger.error(f"Error fetching neighbors for card {card_id}: {e}")
+            logger.error(f"[GraphStore] Error fetching neighbors for card {card_id}: {e}")
             raise

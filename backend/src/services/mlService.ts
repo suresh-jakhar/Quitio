@@ -59,3 +59,27 @@ export const vectorSearch = async (
     throw new Error('Semantic search service is currently unavailable.');
   }
 };
+/**
+ * Perform hybrid search combining vector similarity and keyword relevance.
+ */
+export const hybridSearch = async (
+  query: string,
+  userId: string,
+  topK: number = 10,
+  vectorWeight: number = 0.5,
+  keywordWeight: number = 0.5
+): Promise<VectorSearchResponse> => {
+  try {
+    const response = await axios.post(`${ML_SERVICE_URL}/search/hybrid`, {
+      query,
+      user_id: userId,
+      top_k: topK,
+      vector_weight: vectorWeight,
+      keyword_weight: keywordWeight
+    });
+    return response.data;
+  } catch (err: any) {
+    console.error(`[ML-Integration] Hybrid search failed: ${err.message}`);
+    throw new Error('Hybrid search service is currently unavailable.');
+  }
+};

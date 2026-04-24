@@ -14,14 +14,14 @@ interface Config {
 }
 
 const config: Config = {
-  PORT: parseInt(process.env.PORT || '5000', 10),
+  PORT: parseInt(process.env.PORT || '3001', 10),
   NODE_ENV: process.env.NODE_ENV || 'development',
   DATABASE_URL: process.env.DATABASE_URL || '',
   JWT_SECRET: process.env.JWT_SECRET || 'change-me-in-production',
   JWT_EXPIRATION: process.env.JWT_EXPIRATION || '24h',
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:5173',
-  API_URL: process.env.API_URL || 'http://localhost:5000',
-  ML_SERVICE_URL: process.env.ML_SERVICE_URL || 'http://localhost:8000',
+  API_URL: process.env.API_URL || 'http://localhost:3001',
+  ML_SERVICE_URL: process.env.ML_SERVICE_URL || 'http://localhost:5000',
 };
 
 // Validate required variables

@@ -90,22 +90,18 @@ class VectorStore:
         try:
             with self.db_service.get_connection() as conn:
                 with conn.cursor() as cur:
-                    # ts_rank calculates relevance based on keyword frequency and proximity
-                    # we use weight: title (A) + extracted_text (B)
+                    # Use a single concatenated tsvector — must match the GIN index expression exactly
                     sql = """
                         SELECT 
                             id, title, content_type,
                             ts_rank(
-                                setweight(to_tsvector('english', COALESCE(title, '')), 'A') || 
-                                setweight(to_tsvector('english', COALESCE(extracted_text, '')), 'B'), 
+                                to_tsvector('english', COALESCE(title, '') || ' ' || COALESCE(extracted_text, '')),
                                 plainto_tsquery('english', %s)
                             ) as rank
                         FROM cards
                         WHERE user_id = %s
-                          AND (
-                            to_tsvector('english', COALESCE(title, '')) || 
-                            to_tsvector('english', COALESCE(extracted_text, ''))
-                          ) @@ plainto_tsquery('english', %s)
+                          AND to_tsvector('english', COALESCE(title, '') || ' ' || COALESCE(extracted_text, ''))
+                              @@ plainto_tsquery('english', %s)
                         ORDER BY rank DESC
                         LIMIT %s
                     """
@@ -180,14 +176,14 @@ class VectorStore:
                         WITH (lists = 100)
                     """)
 
-                    # 4. Create GIN index for Full-Text Search
-                    # This speeds up the @@ operator queries
+                    # 4. Recreate GIN index for Full-Text Search with corrected expression.
+                    # DROP first so IF NOT EXISTS doesn't silently keep the old mis-matched index.
+                    cur.execute("DROP INDEX IF EXISTS idx_cards_fts")
                     cur.execute("""
-                        CREATE INDEX IF NOT EXISTS idx_cards_fts ON cards 
-                        USING gin ((
-                            setweight(to_tsvector('english', COALESCE(title, '')), 'A') || 
-                            setweight(to_tsvector('english', COALESCE(extracted_text, '')), 'B')
-                        ))
+                        CREATE INDEX idx_cards_fts ON cards 
+                        USING gin (
+                            to_tsvector('english', COALESCE(title, '') || ' ' || COALESCE(extracted_text, ''))
+                        )
                     """)
 
                     # 5. Ensure graph_edges has edge_type column

@@ -1,7 +1,7 @@
 import { Router, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import pool from '../utils/db';
-import { vectorSearch } from '../services/mlService';
+import { vectorSearch, hybridSearch } from '../services/mlService';
 
 const router = Router();
 
@@ -100,18 +100,27 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
 
     const result = await pool.query(searchQuery, queryParams);
 
-    // Fetch tags for each result card
-    const resultsWithTags = await Promise.all(
-      result.rows.map(async (card) => {
-        const tagsResult = await pool.query(
-          `SELECT t.id, t.name FROM tags t
-           JOIN card_tags ct ON t.id = ct.tag_id
-           WHERE ct.card_id = $1 AND t.user_id = $2`,
-          [card.id, req.userId!]
-        );
-        return { ...card, tags: tagsResult.rows };
-      })
-    );
+    // Batch-fetch tags for all result cards in a single query (avoid N+1)
+    const resultIds = result.rows.map((c: any) => c.id);
+    let allTagRows: any[] = [];
+    if (resultIds.length > 0) {
+      const batchTagsResult = await pool.query(
+        `SELECT ct.card_id, t.id, t.name FROM tags t
+         JOIN card_tags ct ON t.id = ct.tag_id
+         WHERE ct.card_id = ANY($1::uuid[]) AND t.user_id = $2`,
+        [resultIds, req.userId!]
+      );
+      allTagRows = batchTagsResult.rows;
+    }
+    const tagsByCardId = new Map<string, any[]>();
+    allTagRows.forEach((row) => {
+      if (!tagsByCardId.has(row.card_id)) tagsByCardId.set(row.card_id, []);
+      tagsByCardId.get(row.card_id)!.push({ id: row.id, name: row.name });
+    });
+    const resultsWithTags = result.rows.map((card: any) => ({
+      ...card,
+      tags: tagsByCardId.get(card.id) || [],
+    }));
 
     // --- Phase 22 Integration: Semantic Search fallback/mode ---
     const semanticParam = req.query.semantic === 'true';
@@ -119,39 +128,46 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
     if (semanticParam) {
       try {
         console.log(`[DEBUG-BACKEND] Calling ML service for query: "${q}"`);
-        const mlRes = await vectorSearch(q, req.userId!, 20, tagIds.length > 0 ? tagIds : undefined);
-        console.log(`[DEBUG-BACKEND] ML service returned ${mlRes.results.length} raw matches.`);
+        const mlRes = await hybridSearch(q, req.userId!, 20);
+        console.log(`[DEBUG-BACKEND] ML service returned ${mlRes.results.length} hybrid results.`);
         
-        // We need to fetch full card details for the results returned by ML service
-        const semanticResults = await Promise.all(
-          mlRes.results.map(async (res: any) => {
-            const cardRes = await pool.query(
-              'SELECT * FROM cards WHERE id = $1 AND user_id = $2',
-              [res.id, req.userId!]
-            );
-            if (cardRes.rows.length === 0) {
-              console.log(`[DEBUG-BACKEND] Card ID ${res.id} from ML service not found in DB!`);
-              return null;
-            }
-            const card = cardRes.rows[0];
-            const tagsRes = await pool.query(
-              `SELECT t.id, t.name FROM tags t
-               JOIN card_tags ct ON t.id = ct.tag_id
-               WHERE ct.card_id = $1 AND t.user_id = $2`,
-              [card.id, req.userId!]
-            );
-            return { ...card, tags: tagsRes.rows, similarity: res.similarity };
-          })
-        );
+        // Batch-fetch all cards and their tags in 2 queries (avoid N+1)
+        const mlIds = mlRes.results.map((r: any) => r.id);
+        const similarityMap = new Map<string, number>(mlRes.results.map((r: any) => [r.id, r.similarity]));
 
-        const filteredResults = semanticResults.filter(Boolean);
-        console.log(`[DEBUG-BACKEND] Final semantic results count: ${filteredResults.length}`);
+        const [mlCardsResult, mlTagsResult] = await Promise.all([
+          pool.query(
+            'SELECT * FROM cards WHERE id = ANY($1::uuid[]) AND user_id = $2',
+            [mlIds, req.userId!]
+          ),
+          pool.query(
+            `SELECT ct.card_id, t.id, t.name FROM tags t
+             JOIN card_tags ct ON t.id = ct.tag_id
+             WHERE ct.card_id = ANY($1::uuid[]) AND t.user_id = $2`,
+            [mlIds, req.userId!]
+          ),
+        ]);
 
+        const mlTagsByCard = new Map<string, any[]>();
+        mlTagsResult.rows.forEach((row: any) => {
+          if (!mlTagsByCard.has(row.card_id)) mlTagsByCard.set(row.card_id, []);
+          mlTagsByCard.get(row.card_id)!.push({ id: row.id, name: row.name });
+        });
+
+        const semanticResults = mlCardsResult.rows
+          .map((card: any) => ({
+            ...card,
+            tags: mlTagsByCard.get(card.id) || [],
+            similarity: similarityMap.get(card.id) ?? 0,
+          }))
+          .sort((a: any, b: any) => b.similarity - a.similarity);
+
+        console.log(`[DEBUG-BACKEND] Final semantic results count: ${semanticResults.length}`);
         return res.status(200).json({
-          results: filteredResults,
+          results: semanticResults,
           query: q,
-          count: filteredResults.length,
-          type: 'semantic'
+          count: semanticResults.length,
+          type: 'semantic',
         });
       } catch (err: any) {
         console.error(`[Search] Semantic search failed, falling back to keyword: ${err.message}`);
