@@ -31,13 +31,24 @@ export const useSmartArrange = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetch = useCallback(async () => {
+  const fetch = useCallback(async (forceRefresh = false) => {
+    const startTime = Date.now();
     try {
       setLoading(true);
       setError(null);
-      const res = await api.get<SmartArrangeData>('/arrange/smart');
+      console.log(`[DEBUG-FRONTEND] [SmartArrange] Request started at ${new Date().toLocaleTimeString()} (Force: ${forceRefresh})`);
+      
+      const endpoint = forceRefresh ? '/arrange/smart?forceRefresh=true' : '/arrange/smart';
+      const res = await api.get<SmartArrangeData>(endpoint);
+      
+      const duration = Date.now() - startTime;
+      console.log(`[DEBUG-FRONTEND] [SmartArrange] Success! Response received in ${duration}ms`);
+      console.log(`[DEBUG-FRONTEND] [SmartArrange] Clusters received: ${res.data.clusters.length}`);
+      
       setData(res.data);
     } catch (err: any) {
+      const duration = Date.now() - startTime;
+      console.error(`[DEBUG-FRONTEND] [SmartArrange] FAILED after ${duration}ms:`, err);
       setError(err.response?.data?.message || err.message || 'Failed to load smart arrangement');
     } finally {
       setLoading(false);

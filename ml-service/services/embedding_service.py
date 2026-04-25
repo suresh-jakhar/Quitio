@@ -12,14 +12,32 @@ class EmbeddingService:
         self.model = self.loader.model
 
     def embed_text(self, text: str) -> List[float]:
-        """Generate embedding for a single text string."""
+        """
+        Generate embedding for a single text string using chunking and mean pooling.
+        Ensures long documents are fully represented.
+        """
         if not text or not text.strip():
             logger.warning("Attempted to embed empty text.")
             raise ValueError("Text content is required for embedding.")
         
         try:
-            # text.strip() to ensure no leading/trailing whitespace issues
-            embedding = self.model.encode(text.strip())
+            # Issue 4 Fix: Chunking (300 words, 50 overlap)
+            chunks = self._chunk_text(text.strip())
+            
+            if len(chunks) == 1:
+                embedding = self.model.encode(chunks[0])
+            else:
+                logger.debug(f"Embedding long text in {len(chunks)} chunks.")
+                chunk_embeddings = self.model.encode(chunks)
+                
+                # Issue 5 Fix: Weighted Mean Pooling (Phase 2)
+                # Weight each chunk by its length (word count) to favor dense chunks
+                weights = np.array([len(c.split()) for c in chunks])
+                # Softmax-like normalization or simple linear? Linear is safer for density.
+                weights = weights / np.sum(weights)
+                
+                embedding = np.average(chunk_embeddings, axis=0, weights=weights)
+
             # Ensure L2 normalization for consistent cosine similarity
             norm = np.linalg.norm(embedding)
             if norm > 0:
@@ -57,3 +75,17 @@ class EmbeddingService:
     def get_dimension(self) -> int:
         """Return the dimension of the embeddings."""
         return self.model.get_sentence_embedding_dimension()
+
+    def _chunk_text(self, text: str, chunk_size: int = 300, overlap: int = 50) -> List[str]:
+        """Split text into overlapping chunks of words."""
+        words = text.split()
+        if len(words) <= chunk_size:
+            return [text]
+        
+        chunks = []
+        for i in range(0, len(words), chunk_size - overlap):
+            chunk = " ".join(words[i : i + chunk_size])
+            chunks.append(chunk)
+            if i + chunk_size >= len(words):
+                break
+        return chunks

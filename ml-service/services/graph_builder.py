@@ -2,6 +2,7 @@ import logging
 import numpy as np
 import networkx as nx
 from typing import List, Dict, Tuple, Optional
+from collections import defaultdict
 from services.vector_store import VectorStore
 from services.graph_store import GraphStore
 
@@ -12,6 +13,36 @@ class GraphBuilder:
     def __init__(self, vector_store: VectorStore, graph_store: GraphStore):
         self.vector_store = vector_store
         self.graph_store = graph_store
+
+    async def get_user_graph(self, user_id: str, card_ids: List[str]):
+        """
+        Fetches the existing knowledge graph for a user from the database.
+        Returns: adjacency (Dict[str, Dict[str, float]]), edges_count (int)
+        """
+        adjacency = defaultdict(dict)
+        edges_count = 0
+        
+        try:
+            with self.graph_store.db_service.get_connection() as conn:
+                with conn.cursor() as cur:
+                    # Filter for edges where both source and target are in the current card set
+                    cur.execute("""
+                        SELECT source_card_id, target_card_id, similarity_score
+                        FROM graph_edges
+                        WHERE source_card_id = ANY(%s::uuid[]) 
+                          AND target_card_id = ANY(%s::uuid[])
+                    """, (card_ids, card_ids))
+                    
+                    rows = cur.fetchall()
+                    for src, tgt, score in rows:
+                        adjacency[str(src)][str(tgt)] = float(score)
+                        edges_count += 1
+            
+            logger.info(f"[GraphBuilder] Fetched subgraph with {edges_count} edges for {len(card_ids)} cards.")
+            return adjacency, edges_count
+        except Exception as e:
+            logger.error(f"[GraphBuilder] Error fetching user graph: {e}")
+            return {}, 0
 
     def build_user_graph(
         self,
@@ -31,12 +62,11 @@ class GraphBuilder:
         if n == 0:
             return 0
 
-        # Dynamic K: scales with N, but capped for performance
-        # User requested: min(30, max(15, log(N)*8))
+        # Increase K multiplier for better connectivity (Phase 4)
         if top_k is None:
-            top_k = int(min(30, max(15, np.log(n) * 8)))
+            top_k = min(25, max(8, int(np.log(n) * 5))) if n > 1 else 8
         
-        logger.info(f"[GraphBuilder] Using dynamic K={top_k} for N={n} cards")
+        logger.info(f"[DEBUG-ML] [GraphBuilder] Dense K selected: {top_k} (N={n})")
 
         # 2. For each card, find its top_k neighbors
         all_edges = []
@@ -120,7 +150,7 @@ class GraphBuilder:
                 cur.execute("SELECT count(*) FROM cards WHERE user_id = %s", (user_id,))
                 n = cur.fetchone()[0]
         
-        top_k = int(min(30, max(15, np.log(n) * 8)))
+        top_k = min(20, max(5, int(np.log(n) * 3))) if n > 1 else 5
 
         # 3. Find top_k neighbors
         neighbors = self.vector_store.find_similar_cards(
@@ -145,51 +175,81 @@ class GraphBuilder:
         if all_new_edges:
             self.graph_store.batch_add_edges(all_new_edges)
 
-    def _compute_edges_for_card(self, card: dict, neighbors: List[dict], threshold: float) -> List[Tuple]:
-        edges = []
+    def _fused_similarity(self, card: dict, n: dict) -> dict:
         source_id = card["id"]
-        source_tags = set(card["tags"])
+        target_id = n["id"]
         
-        rejected_count = 0
-        sim_scores = []
+        # 1. Component Scores
+        text_sem_score = n["similarity"]
+        
+        concept_sim = 0.0
+        if card.get("concept_embedding") is not None and n.get("concept_embedding") is not None:
+            c1 = np.array(card["concept_embedding"])
+            c2 = np.array(n["concept_embedding"])
+            concept_sim = np.dot(c1, c2) / (np.linalg.norm(c1) * np.linalg.norm(c2) + 1e-9)
+        
+        # 2. Pattern Matching (Structural Signal)
+        t1, t2 = card.get("title", "").lower(), n.get("title", "").lower()
+        naming_pattern_match = 0.0
+        # Check for Lab/Assignment/Chapter series (Lab 11 vs Lab 13)
+        import re
+        p1 = re.findall(r'(lab|assignment|chapter|part|day)\s*\d+', t1)
+        p2 = re.findall(r'(lab|assignment|chapter|part|day)\s*\d+', t2)
+        if p1 and p2 and p1[0] == p2[0]:
+            naming_pattern_match = 0.40 # Strong structural link for document series
+        
+        # 3. Semantic Metadata (Functional Signal)
+        meta_src = card.get("semantic_metadata") or {}
+        meta_tgt = n.get("semantic_metadata") or {}
+        intent_match = (meta_src.get("intent") == meta_tgt.get("intent")) and meta_src.get("intent") is not None
+        domain_match = (meta_src.get("domain") == meta_tgt.get("domain")) and meta_src.get("domain") is not None
+        
+        # 4. TOPOLOGY FUSION (Phase 5: High-Thematic Sensitivity)
+        # Final Score = Structural (30%) + Intent (25%) + Domain (25%) + Concept (15%) + Text (5%)
+        
+        intent_bonus = 0.25 if intent_match else 0
+        domain_bonus = 0.25 if domain_match else 0
+        
+        final_score = (0.30 * naming_pattern_match) + (0.15 * concept_sim) + (0.05 * text_sem_score) + intent_bonus + domain_bonus
+        
+        if final_score > 0.35:
+            logger.debug(f"[DEEP-ML] Fused Edge {t1[:10]}->{t2[:10]} | Score: {final_score:.3f} | Pattern: {naming_pattern_match:.2f}")
 
+        edge_type = "structural" if naming_pattern_match > 0 else "conceptual" if (intent_match or domain_match) else "semantic"
+        
+        return {
+            "source_id": source_id,
+            "target_id": target_id,
+            "final_score": min(1.0, final_score),
+            "sem_score": text_sem_score,
+            "edge_type": edge_type,
+            "reason": f"structural: {naming_pattern_match:.2f} | concept: {concept_sim:.2f} | txt: {text_sem_score:.2f}"
+        }
+
+    def _compute_edges_for_card(self, card: dict, neighbors: List[dict], threshold: float) -> List[Tuple]:
+        source_id = card["id"]
+        candidates = []
         for n in neighbors:
-            target_id = n["id"]
-            if source_id == target_id:
+            if source_id == n["id"]:
                 continue
+            edge_data = self._fused_similarity(card, n)
+            candidates.append(edge_data)
 
-            sem_score = n["similarity"]
-            sim_scores.append(sem_score)
-            
-            target_tags = set(n.get("tags", []))
-            shared = source_tags & target_tags
-            
-            tag_boost = min(0.1, len(shared) * 0.05) if shared else 0.0
-            final_score = min(1.0, sem_score + tag_boost)
-            
-            edge_type = "hybrid" if tag_boost > 0 else "semantic"
-            reason = f"sem_score: {sem_score:.3f}, shared_tags: {list(shared)}, boost: {tag_boost:.3f}"
-            
-            # Step 4: Minimum Edge Rule
-            # If we don't have enough edges yet, force add the top ones anyway
-            # neighbors is already sorted by similarity from vector_store
-            if sem_score < threshold:
-                # If this is one of the top 2 neighbors, we keep it anyway to prevent isolation
-                if len(edges) < 2:
-                    reason += f" (FORCE: min_edge_rule)"
-                    edges.append((source_id, target_id, final_score, edge_type, reason))
-                else:
-                    rejected_count += 1
-                    continue
-            else:
-                edges.append((source_id, target_id, final_score, edge_type, reason))
+        if not candidates:
+            return []
+
+        # 1. Sort by final fused score (not just raw semantic)
+        candidates.sort(key=lambda x: x["final_score"], reverse=True)
         
-        if sim_scores:
-            avg_sim = sum(sim_scores) / len(sim_scores)
-            logger.info(
-                f"[DEBUG-Graph] Card {source_id[:8]} | neighbors={len(neighbors)} | "
-                f"avg_sim={avg_sim:.3f} | min={min(sim_scores):.3f} | max={max(sim_scores):.3f} | "
-                f"rejected={rejected_count} (threshold={threshold}) | edges={len(edges)}"
-            )
+        # 2. Keep Top 80% of candidates to maintain density
+        keep_count = max(1, int(len(candidates) * 0.8))
+        filtered_candidates = candidates[:keep_count]
+        
+        # 3. Apply a floor for edge inclusion
+        edges = []
+        for c in filtered_candidates:
+            if c["final_score"] < 0.15:
+                continue
+            edges.append((c["source_id"], c["target_id"], c["final_score"], c["edge_type"], c["reason"]))
             
         return edges

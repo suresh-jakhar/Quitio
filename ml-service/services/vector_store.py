@@ -137,7 +137,9 @@ class VectorStore:
                 register_vector(conn)
                 with conn.cursor() as cur:
                     sql = """
-                        SELECT c.id, c.embedding, array_agg(t.name) as tags
+                        SELECT c.id, c.title, c.extracted_text, c.content_type, 
+                               c.embedding, c.semantic_metadata, c.concept_embedding, 
+                               array_agg(t.name) as tags
                         FROM cards c
                         LEFT JOIN card_tags ct ON c.id = ct.card_id
                         LEFT JOIN tags t ON ct.tag_id = t.id
@@ -151,8 +153,13 @@ class VectorStore:
                     for row in rows:
                         results.append({
                             "id": str(row[0]),
-                            "embedding": row[1],
-                            "tags": [tag for tag in row[2] if tag is not None]
+                            "title": row[1],
+                            "extracted_text": row[2],
+                            "content_type": row[3],
+                            "embedding": row[4],
+                            "semantic_metadata": row[5],
+                            "concept_embedding": row[6],
+                            "tags": [tag for tag in row[7] if tag is not None]
                         })
             return results
         except Exception as e:
@@ -202,6 +209,22 @@ class VectorStore:
 
                     # 7. Add centrality column to cards for ranking
                     cur.execute("ALTER TABLE cards ADD COLUMN IF NOT EXISTS centrality FLOAT DEFAULT 0.0")
+
+                    # 8. Add cluster_label column for stability (Phase 2)
+                    cur.execute("ALTER TABLE cards ADD COLUMN IF NOT EXISTS cluster_label VARCHAR(255)")
+
+                    # 9. Deep Semantic Layer (Phase 3)
+                    # JSONB for structured concepts {intent, domain, entities}
+                    cur.execute("ALTER TABLE cards ADD COLUMN IF NOT EXISTS semantic_metadata JSONB")
+                    # Vector for CONCEPTUAL similarity (embedding of the LLM concept summary)
+                    cur.execute("ALTER TABLE cards ADD COLUMN IF NOT EXISTS concept_embedding vector(384)")
+                    
+                    # Create index for concept retrieval
+                    cur.execute("DROP INDEX IF EXISTS idx_cards_concept_embedding")
+                    cur.execute("""
+                        CREATE INDEX idx_cards_concept_embedding ON cards 
+                        USING hnsw (concept_embedding vector_cosine_ops)
+                    """)
                 conn.commit()
             logger.info("pgvector and FTS database structure initialized successfully.")
         except Exception as e:

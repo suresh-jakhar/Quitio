@@ -84,10 +84,13 @@ async def get_neighbors(
         logger.error(f"Error fetching neighbors for card {card_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch neighbors.")
 
+class IncrementalUpdateRequest(BaseModel):
+    card_id: str
+    user_id: str
+
 @router.post("/incremental-update")
 async def incremental_update(
-    card_id: str,
-    user_id: str,
+    request: IncrementalUpdateRequest,
     background_tasks: BackgroundTasks,
     builder: GraphBuilder = Depends(get_graph_builder)
 ):
@@ -95,8 +98,8 @@ async def incremental_update(
     Triggers an incremental update of the knowledge graph for a single card.
     """
     try:
-        logger.info(f"Received incremental graph update request for card: {card_id}")
-        background_tasks.add_task(builder.update_card_edges, card_id=card_id, user_id=user_id)
+        logger.info(f"Received incremental graph update request for card: {request.card_id}")
+        background_tasks.add_task(builder.update_card_edges, card_id=request.card_id, user_id=request.user_id)
         return {"status": "accepted", "message": "Incremental graph update started"}
     except Exception as e:
         logger.error(f"Error starting incremental update: {e}")

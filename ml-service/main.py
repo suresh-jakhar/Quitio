@@ -36,12 +36,24 @@ async def lifespan(app: FastAPI):
     # Shutdown logic
     logger.info("Shutting down QUITIO ML Service...")
 
+import time
+from fastapi import Request
+
 app = FastAPI(
     title="QUITIO ML Service",
     description="ML-powered semantic engine for Quitio",
     version="1.0.0",
     lifespan=lifespan
 )
+
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    logger.info(f"Path: {request.url.path} | Duration: {process_time:.2f}s")
+    response.headers["X-Process-Time"] = str(process_time)
+    return response
 
 # CORS configuration
 app.add_middleware(

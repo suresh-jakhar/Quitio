@@ -349,25 +349,26 @@ export default function SmartArrangePage() {
 
           <button
             id="smart-arrange-refresh-btn"
-            onClick={fetch}
+            onClick={() => fetch(true)}
             disabled={loading}
             style={{
               padding: '10px 20px',
               borderRadius: '12px',
               border: '1.5px solid #e5e7eb',
-              background: '#fff',
+              background: loading ? '#f9fafb' : '#fff',
               cursor: loading ? 'not-allowed' : 'pointer',
               fontWeight: 600,
               fontSize: '14px',
-              color: '#374151',
+              color: loading ? '#9ca3af' : '#374151',
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
               transition: 'all 150ms',
               opacity: loading ? 0.6 : 1,
+              boxShadow: loading ? 'none' : '0 1px 4px rgba(0,0,0,0.05)',
             }}
           >
-            {loading ? '⏳' : '🔄'} Refresh
+            {loading ? '⏳' : '🔥'} {loading ? 'Rebuilding...' : 'Strong Refresh'}
           </button>
         </div>
 
