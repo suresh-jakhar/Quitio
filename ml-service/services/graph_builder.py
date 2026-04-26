@@ -201,18 +201,39 @@ class GraphBuilder:
         # 3. Semantic Metadata (Functional Signal)
         meta_src = card.get("semantic_metadata") or {}
         meta_tgt = n.get("semantic_metadata") or {}
-        intent_match = (meta_src.get("intent") == meta_tgt.get("intent")) and meta_src.get("intent") is not None
-        domain_match = (meta_src.get("domain") == meta_tgt.get("domain")) and meta_src.get("domain") is not None
         
-        # 4. TOPOLOGY FUSION (Phase 5: High-Thematic Sensitivity)
-        # Final Score = Structural (30%) + Intent (25%) + Domain (25%) + Concept (15%) + Text (5%)
+        def normalize_meta(val):
+            if not val: return None
+            return str(val).lower().strip().replace('_', ' ')
+
+        src_intent = normalize_meta(meta_src.get("intent"))
+        tgt_intent = normalize_meta(meta_tgt.get("intent"))
+        src_domain = normalize_meta(meta_src.get("domain"))
+        tgt_domain = normalize_meta(meta_tgt.get("domain"))
+
+        intent_match = (src_intent == tgt_intent) and src_intent is not None
         
-        intent_bonus = 0.25 if intent_match else 0
-        domain_bonus = 0.25 if domain_match else 0
+        # Robust Domain Match: Exact or starts with the same root word (e.g., 'food science' vs 'food')
+        domain_match = False
+        if src_domain and tgt_domain:
+            if src_domain == tgt_domain:
+                domain_match = True
+            else:
+                # Check for prefix match (at least 4 chars to avoid 'the', 'and', etc.)
+                s1, s2 = src_domain.split()[0], tgt_domain.split()[0]
+                if len(s1) > 3 and s1 == s2:
+                    domain_match = True
+
+        # 4. TOPOLOGY FUSION (Balanced Weights)
+        # Final Score = Structural (20%) + Concept (25%) + Text (25%) + Intent (15%) + Domain (15%)
+        # This increases the influence of semantic embeddings which were previously drowned out.
         
-        final_score = (0.30 * naming_pattern_match) + (0.15 * concept_sim) + (0.05 * text_sem_score) + intent_bonus + domain_bonus
+        intent_bonus = 0.15 if intent_match else 0
+        domain_bonus = 0.15 if domain_match else 0
         
-        if final_score > 0.35:
+        final_score = (0.20 * naming_pattern_match) + (0.25 * concept_sim) + (0.25 * text_sem_score) + intent_bonus + domain_bonus
+        
+        if final_score > 0.25:
             logger.debug(f"[DEEP-ML] Fused Edge {t1[:10]}->{t2[:10]} | Score: {final_score:.3f} | Pattern: {naming_pattern_match:.2f}")
 
         edge_type = "structural" if naming_pattern_match > 0 else "conceptual" if (intent_match or domain_match) else "semantic"

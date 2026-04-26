@@ -41,7 +41,7 @@ class VectorStore:
                     # Base query with tags
                     sql = """
                         SELECT c.id, c.title, c.content_type, 1 - (c.embedding <=> %s::vector) as similarity,
-                               ARRAY_AGG(t.name) as tags
+                               ARRAY_AGG(t.name) as tags, c.semantic_metadata, c.concept_embedding
                         FROM cards c
                         LEFT JOIN card_tags ct ON c.id = ct.card_id
                         LEFT JOIN tags t ON ct.tag_id = t.id
@@ -76,7 +76,9 @@ class VectorStore:
                             "title": row[1],
                             "content_type": row[2],
                             "similarity": float(row[3]),
-                            "tags": [tag for tag in row[4] if tag is not None]
+                            "tags": [tag for tag in row[4] if tag is not None],
+                            "semantic_metadata": row[5],
+                            "concept_embedding": row[6]
                         })
             return results
         except Exception as e:

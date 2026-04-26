@@ -138,6 +138,10 @@ async def smart_arrange(
             logger.info(f"[DEBUG-ML] [2/6] All {len(cards)} cards already enriched. Skipping.")
 
         # 3. Graph Retrieval
+        if request.force_refresh or request.force_rebuild_graph:
+            logger.info(f"[DEBUG-ML] Rebuilding graph edges for user {request.user_id}...")
+            graph_builder.build_user_graph(request.user_id)
+
         graph_start = time.time()
         adjacency, edges_count = await graph_builder.get_user_graph(request.user_id, card_ids)
         logger.info(f"[DEBUG-ML] [3/6] Graph retrieved ({edges_count} edges) in {time.time() - graph_start:.4f}s")
@@ -147,6 +151,16 @@ async def smart_arrange(
         final_communities = []
         is_empty_graph = edges_count == 0
 
+        def normalize_domain(d):
+            if not d: return None
+            d = str(d).lower().strip()
+            # Broad thematic grouping for known high-density topics
+            if any(x in d for x in ['food', 'culinary', 'cook', 'cuisine', 'flavor', 'recipe']):
+                return 'food_group'
+            if any(x in d for x in ['ai', 'machine learning', 'neural', 'computational']):
+                return 'ai_group'
+            return d.split('/')[0].split()[0]
+
         if is_empty_graph or len(card_ids) < 5:
             logger.info(f"[DEBUG-ML] [4/6] Empty or small graph. Using domain-aware fallback clustering.")
             # Domain-Aware Fallback
@@ -155,7 +169,8 @@ async def smart_arrange(
             for cid in card_ids:
                 meta = card_map.get(cid, {}).get("semantic_metadata")
                 if meta and meta.get("domain"):
-                    domain_groups[meta["domain"]].append(cid)
+                    norm_d = normalize_domain(meta["domain"])
+                    domain_groups[norm_d].append(cid)
                     remaining.discard(cid)
             
             final_communities = [list(c) for c in domain_groups.values()]
@@ -169,7 +184,7 @@ async def smart_arrange(
                 for other in list(rem_list):
                     other_emb = np.array(card_map[other]["embedding"])
                     sim = np.dot(centroid, other_emb) / (np.linalg.norm(centroid) * np.linalg.norm(other_emb) + 1e-9)
-                    if sim > 0.40:
+                    if sim > 0.35: # More relaxed fallback threshold
                         comm.append(other)
                         rem_list.remove(other)
                 final_communities.append(comm)
@@ -183,14 +198,13 @@ async def smart_arrange(
                     G.add_edge(src, tgt, weight=weight)
             
             # 5. Dynamic Semantic Merging (Hierarchical Refinement)
-            # Louvain can be over-granular; we merge clusters that are semantically 'touching'
-            # We use an ultra-low resolution (0.2) for maximum consolidation
             communities = list(nx.algorithms.community.louvain_communities(G, weight='weight', resolution=0.2))
             logger.info(f"[DEBUG-ML] Initial Louvain count: {len(communities)}")
             
             final_communities = communities
             if len(communities) > 1:
                 logger.info(f"[DEBUG-ML] [5/6] Performing maximum thematic consolidation...")
+                
                 merged = True
                 while merged:
                     merged = False
@@ -206,15 +220,31 @@ async def smart_arrange(
                             c1, c2 = centroids[i], centroids[j]
                             sim = np.dot(c1, c2) / (np.linalg.norm(c1) * np.linalg.norm(c2) + 1e-9)
                             
-                            # Deep semantic bonus for intent/domain overlap during merge
+                            # Deep semantic bonus for intent/domain/entity overlap during merge
                             m1 = [card_map[cid].get("semantic_metadata", {}) for cid in final_communities[i]]
                             m2 = [card_map[cid].get("semantic_metadata", {}) for cid in final_communities[j]]
-                            d1 = set([m.get("domain") for m in m1 if m.get("domain")])
-                            d2 = set([m.get("domain") for m in m2 if m.get("domain")])
-                            if d1 & d2: sim += 0.20 # Force merge for shared domains
                             
-                            # Extreme threshold (0.50) for maximum consolidation
-                            if sim > 0.50: 
+                            d1 = set([normalize_domain(m.get("domain")) for m in m1 if m.get("domain")])
+                            d2 = set([normalize_domain(m.get("domain")) for m in m2 if m.get("domain")])
+                            d1.discard(None); d2.discard(None)
+
+                            if d1 & d2: 
+                                sim += 0.30 # Strong thematic anchor
+                            
+                            # Intent overlap bonus
+                            i1 = set([str(m.get("intent")).lower() for m in m1 if m.get("intent")])
+                            i2 = set([str(m.get("intent")).lower() for m in m2 if m.get("intent")])
+                            if i1 & i2: sim += 0.05
+                            
+                            # Entity overlap bonus (Phase 5 refinement)
+                            e1 = set([str(e).lower().replace('_', ' ') for m in m1 for e in m.get("entities", [])])
+                            e2 = set([str(e).lower().replace('_', ' ') for m in m2 for e in m.get("entities", [])])
+                            if e1 & e2:
+                                overlap_ratio = len(e1 & e2) / max(1, len(e1 | e2))
+                                sim += 0.20 * overlap_ratio
+
+                            # Threshold (0.40) for grouping related but distinct nodes
+                            if sim > 0.40: 
                                 if sim > best_sim:
                                     best_sim = sim
                                     best_pair = (i, j)
