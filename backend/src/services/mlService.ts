@@ -122,3 +122,24 @@ export const deleteCardEdges = async (cardId: string): Promise<void> => {
     console.error(`[ML-Integration] Failed to delete card edges: ${err.message}`);
   }
 };
+
+/**
+ * Perform a RAG (Retrieval-Augmented Generation) query.
+ */
+export const queryRag = async (
+  query: string,
+  userId: string,
+  topK: number = 5
+): Promise<{ query: string; answer: string; context_count: number }> => {
+  try {
+    const response = await axios.post(`${ML_SERVICE_URL}/rag/query`, {
+      query,
+      user_id: userId,
+      top_k: topK
+    });
+    return response.data;
+  } catch (err: any) {
+    console.error(`[ML-Integration] RAG query failed: ${err.message}`);
+    throw new Error('AI assistant is currently unavailable. Please try again later.');
+  }
+};

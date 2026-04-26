@@ -82,6 +82,21 @@ export default function Layout({ children, title, sidebarContent }: LayoutProps)
             >
               🧠 Smart Arrange
             </div>
+            <div
+              id="nav-ai-assistant"
+              className={`sidebar-item ${location.pathname === '/chat' ? 'active' : ''}`}
+              onClick={() => navigate('/chat')}
+              style={{
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                color: location.pathname === '/chat' ? 'var(--color-primary)' : undefined,
+                marginTop: '0.25rem'
+              }}
+            >
+              💬 AI Assistant
+            </div>
           </div>
           {sidebarContent}
         </aside>

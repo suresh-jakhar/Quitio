@@ -65,6 +65,10 @@ class GraphStore:
             logger.error(f"Error deleting edges for user {user_id}: {e}")
             raise
 
+    def delete_user_graph(self, user_id: str):
+        """Alias for delete_user_edges for backward compatibility."""
+        return self.delete_user_edges(user_id)
+
     def delete_card_edges(self, card_id: str):
         """
         Delete all edges associated with a specific card (both as source and target).

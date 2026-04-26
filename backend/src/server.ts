@@ -9,6 +9,7 @@ import tagRoutes from './routes/tags';
 import searchRoutes from './routes/search';
 import graphRoutes from './routes/graph';
 import arrangeRoutes from './routes/arrange';
+import ragRoutes from './routes/rag';
 import database from './utils/database';
 
 const app: Express = express();
@@ -30,6 +31,7 @@ app.use('/tags', authMiddleware, tagRoutes);
 app.use('/search', authMiddleware, searchRoutes); // Phase 17: keyword search
 app.use('/graph', authMiddleware, graphRoutes); // Phase 25+: Knowledge Graph
 app.use('/arrange', authMiddleware, arrangeRoutes); // Smart Arrange
+app.use('/rag', authMiddleware, ragRoutes); // Phase 28: RAG
 
 // Error handler (must be last)
 app.use(errorHandler);

@@ -177,9 +177,51 @@ class LLMService:
                 logger.error(f"Semantic Extraction Error: {e}")
             return None
 
-    async def summarize_cluster(self, titles: List[str], keywords: List[str]) -> Optional[str]:
-        # Legacy method for backward compatibility
-        return await self.generate_cluster_name([], [{"title": t, "text": ""} for t in titles])
+    async def generate_answer(self, query: str, context_cards: List[dict]) -> str:
+        """Generate answer using RAG context."""
+        if not self.client or self._is_cooling_off():
+            return "I'm sorry, I cannot process your request right now due to LLM service unavailability."
+
+        # Format context
+        context_text = ""
+        for i, card in enumerate(context_cards):
+            content = (card.get('extracted_text') or "")[:1000]
+            context_text += f"Card {i+1} (ID: {card['id']}):\nTitle: {card['title']}\nContent: {content}\n---\n"
+
+        system_prompt = (
+            "You are QUITIO, an intelligent knowledge management assistant.\n"
+            "Answer the user's question based strictly on the provided context cards.\n"
+            "If the information is not present in the context, clearly state that you don't know based on the provided documents.\n"
+            "Keep your answers concise, accurate, and professional.\n"
+            "Citations: Refer to the cards by their titles if relevant."
+        )
+
+        prompt = f"Context Cards:\n{context_text}\n\nUser Question: {query}\n\nAnswer:"
+
+        try:
+            logger.info(f"[DEBUG-LLM] [RAG] Generating answer for query: {query[:50]}...")
+            start_time = time.time()
+            completion = await self.client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                model=self.model,
+                temperature=0.3,
+                max_tokens=1024
+            )
+            
+            duration = time.time() - start_time
+            answer = completion.choices[0].message.content.strip()
+            logger.info(f"[DEBUG-LLM] [RAG] Answer generated in {duration:.4f}s")
+            
+            return answer
+
+        except Exception as e:
+            logger.error(f"Error in generate_answer: {e}")
+            if "429" in str(e):
+                self.cool_off_until = time.time() + 60
+            return "An error occurred while generating the answer. Please try again later."
 
 # Singleton instance
 llm_service = LLMService()

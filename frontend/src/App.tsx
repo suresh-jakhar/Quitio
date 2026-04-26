@@ -3,6 +3,7 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import HomePage from './pages/HomePage';
 import SmartArrangePage from './pages/SmartArrangePage';
+import ChatPage from './pages/ChatPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import './App.css';
@@ -28,6 +29,14 @@ function App(): JSX.Element {
             element={
               <ProtectedRoute>
                 <SmartArrangePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/chat"
+            element={
+              <ProtectedRoute>
+                <ChatPage />
               </ProtectedRoute>
             }
           />

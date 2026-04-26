@@ -129,6 +129,52 @@ class VectorStore:
             logger.error(f"Error performing BM25 search: {e}")
             raise
 
+    def get_card(self, card_id: str) -> Optional[dict]:
+        """Fetch a single card by ID."""
+        try:
+            with self.db_service.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT id, title, extracted_text, content_type, metadata FROM cards WHERE id = %s",
+                        (card_id,)
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        return {
+                            "id": str(row[0]),
+                            "title": row[1],
+                            "extracted_text": row[2],
+                            "content_type": row[3],
+                            "metadata": row[4]
+                        }
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching card {card_id}: {e}")
+            raise
+
+    def get_cards(self, card_ids: List[str]) -> List[dict]:
+        """Fetch multiple cards by ID."""
+        if not card_ids:
+            return []
+        try:
+            with self.db_service.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT id, title, extracted_text, content_type, metadata FROM cards WHERE id = ANY(%s)",
+                        (card_ids,)
+                    )
+                    rows = cur.fetchall()
+                    return [{
+                        "id": str(row[0]),
+                        "title": row[1],
+                        "extracted_text": row[2],
+                        "content_type": row[3],
+                        "metadata": row[4]
+                    } for row in rows]
+        except Exception as e:
+            logger.error(f"Error fetching batch cards: {e}")
+            raise
+
     def get_user_cards(self, user_id: str) -> List[dict]:
         """
         Fetch all cards for a user with their embeddings and tags.
