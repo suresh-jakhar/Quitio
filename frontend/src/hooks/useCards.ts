@@ -92,11 +92,15 @@ const useCards = (
     }
   };
 
+  // Build a stable key so the effect only re-runs when the actual IDs change,
+  // not on every parent re-render that creates a new array reference.
+  const tagKey = tagIds ? [...tagIds].sort().join(',') : '';
+
   // Re-fetch whenever tagIds or filterMode changes; reset to page 1
   useEffect(() => {
     fetchCards(1, tagIds, filterMode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(tagIds), filterMode]);
+  }, [tagKey, filterMode]);
 
   const loadMore = () => {
     fetchCards(page + 1, tagIds, filterMode);

@@ -104,8 +104,30 @@ async def store_embedding(
     Store a generated embedding in the database for a specific card.
     """
     try:
-        vector_store.store_embedding(request.card_id, request.embedding)
+        await vector_store.store_embedding(request.card_id, request.embedding)
         return {"status": "success", "message": f"Embedding stored for card {request.card_id}"}
     except Exception as e:
         logger.error(f"Store embedding endpoint error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class EmbedStoreRequest(BaseModel):
+    card_id: str
+    text: str
+
+@router.post("/embed-and-store", status_code=200)
+async def embed_and_store(
+    request: EmbedStoreRequest,
+    embedding_service: EmbeddingService = Depends(get_embedding_service),
+    vector_store: VectorStore = Depends(get_vector_store)
+):
+    """
+    Unified endpoint: generate embedding AND store it in one request.
+    Reduces round-trips and bandwidth.
+    """
+    try:
+        embedding = embedding_service.embed_text(request.text)
+        await vector_store.store_embedding_with_text(request.card_id, embedding, request.text)
+        return {"status": "success", "dimension": len(embedding)}
+    except Exception as e:
+        logger.error(f"Embed and store endpoint error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

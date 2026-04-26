@@ -17,25 +17,33 @@ export interface VectorSearchResponse {
 
 /**
  * Generate an embedding for text and store it for a specific card.
+ * Uses the unified /embed-and-store endpoint for maximum efficiency.
  */
 export const generateAndStoreEmbedding = async (cardId: string, text: string): Promise<void> => {
-  try {
-    console.log(`[ML-Integration] Generating embedding for card ${cardId}...`);
-    
-    // 1. Get embedding from ML service
-    const embedRes = await axios.post(`${ML_SERVICE_URL}/embed`, { text });
-    const { embedding } = embedRes.data;
+  const maxRetries = 2;
+  let attempt = 0;
 
-    // 2. Store it in pgvector via ML service storage endpoint
-    await axios.post(`${ML_SERVICE_URL}/embed/store`, {
-      card_id: cardId,
-      embedding: embedding
-    });
+  while (attempt <= maxRetries) {
+    try {
+      console.log(`[ML-Integration] Generating & storing embedding for card ${cardId} (Attempt ${attempt + 1})...`);
+      
+      await axios.post(`${ML_SERVICE_URL}/embed/embed-and-store`, { 
+        card_id: cardId,
+        text 
+      }, { timeout: 20000 });
 
-    console.log(`[ML-Integration] Embedding stored successfully for card ${cardId}`);
-  } catch (err: any) {
-    console.error(`[ML-Integration] Error generating/storing embedding: ${err.message}`);
-    // We don't throw here to avoid failing card creation if ML service is down
+      console.log(`[ML-Integration] Unified embedding/storage successful for card ${cardId}`);
+      return;
+    } catch (err: any) {
+      attempt++;
+      console.error(`[ML-Integration] Attempt ${attempt} failed: ${err.message}`);
+      if (attempt > maxRetries) {
+        console.error(`[ML-Integration] All attempts failed for card ${cardId}. ML service might be down.`);
+      } else {
+        // Linear backoff
+        await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+      }
+    }
   }
 };
 
@@ -54,7 +62,7 @@ export const vectorSearch = async (
       user_id: userId,
       top_k: topK,
       tags
-    });
+    }, { timeout: 30000 });
     return response.data;
   } catch (err: any) {
     console.error(`[ML-Integration] Vector search failed: ${err.message}`);
@@ -75,7 +83,7 @@ export const hybridSearch = async (
       top_k: topK,
       vector_weight: vectorWeight,
       keyword_weight: keywordWeight
-    });
+    }, { timeout: 30000 });
     return response.data;
   } catch (err: any) {
     console.error(`[ML-Integration] Hybrid search failed: ${err.message}`);
@@ -89,7 +97,7 @@ export const triggerGraphBuild = async (userId: string): Promise<void> => {
       user_id: userId,
       semantic_threshold: 0.7,
       top_k: 20
-    });
+    }, { timeout: 10000 });
     console.log(`[ML-Integration] Full graph build triggered for user ${userId}`);
   } catch (err: any) {
     console.error(`[ML-Integration] Failed to trigger graph build: ${err.message}`);
@@ -104,7 +112,7 @@ export const triggerIncrementalGraphUpdate = async (cardId: string, userId: stri
     await axios.post(`${ML_SERVICE_URL}/graph/incremental-update`, {
       card_id: cardId,
       user_id: userId
-    });
+    }, { timeout: 10000 });
     console.log(`[ML-Integration] Incremental graph update triggered for card ${cardId}`);
   } catch (err: any) {
     console.error(`[ML-Integration] Failed to trigger incremental update: ${err.message}`);
@@ -132,11 +140,12 @@ export const queryRag = async (
   topK: number = 5
 ): Promise<{ query: string; answer: string; context_count: number }> => {
   try {
+    console.log(`[DEBUG-ML-PROXY] POST ${ML_SERVICE_URL}/rag/query for user ${userId}`);
     const response = await axios.post(`${ML_SERVICE_URL}/rag/query`, {
       query,
       user_id: userId,
       top_k: topK
-    });
+    }, { timeout: 60000 });
     return response.data;
   } catch (err: any) {
     console.error(`[ML-Integration] RAG query failed: ${err.message}`);

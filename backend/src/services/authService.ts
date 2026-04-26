@@ -8,10 +8,11 @@ import { User, AuthResponse, SignupRequest } from '../types/User';
 const SALT_ROUNDS = 10;
 
 export const signup = async (email: string, password: string): Promise<AuthResponse> => {
+  const normalizedEmail = email.trim().toLowerCase();
   // Check if user already exists
   const existingUser = await pool.query(
     'SELECT id FROM users WHERE email = $1',
-    [email]
+    [normalizedEmail]
   );
 
   if (existingUser.rows.length > 0) {
@@ -27,7 +28,7 @@ export const signup = async (email: string, password: string): Promise<AuthRespo
   const userId = uuidv4();
   const result = await pool.query(
     'INSERT INTO users (id, email, password_hash, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id, email',
-    [userId, email, passwordHash]
+    [userId, normalizedEmail, passwordHash]
   );
 
   const user = result.rows[0];
@@ -41,10 +42,11 @@ export const signup = async (email: string, password: string): Promise<AuthRespo
 };
 
 export const signin = async (email: string, password: string): Promise<AuthResponse> => {
+  const normalizedEmail = email.trim().toLowerCase();
   // Find user
   const result = await pool.query(
     'SELECT id, email, password_hash FROM users WHERE email = $1',
-    [email]
+    [normalizedEmail]
   );
 
   if (result.rows.length === 0) {

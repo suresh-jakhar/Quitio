@@ -26,45 +26,21 @@ export default function Layout({ children, title, sidebarContent }: LayoutProps)
     : null;
 
   return (
-    <div className="app-layout">
-      {/* Header */}
-      <header className="header">
-        <div className="header-logo" onClick={() => navigate('/')}>
+    <div className="layout-container">
+      {/* Sidebar */}
+      <aside className="sidebar-wrapper">
+        <div className="header-logo" onClick={() => navigate('/')} style={{ cursor: 'pointer', marginBottom: 'var(--space-xl)', display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
           <LogoIcon size={32} />
-          <span>QUITIO</span>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.2rem', letterSpacing: '0.1rem' }}>QUITIO</span>
         </div>
-        <div className="header-content">
-          <h2 style={{ margin: 0, fontSize: 'var(--font-size-lg)', fontWeight: 'var(--font-weight-medium)' }}>
-            {title || 'Knowledge Management'}
-          </h2>
-          <div className="header-nav">
-            {user && (
-              <>
-                <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
-                  {user.email}
-                </span>
-                <Button
-                  label="Logout"
-                  variant="danger"
-                  size="sm"
-                  onClick={handleLogout}
-                />
-              </>
-            )}
-          </div>
-        </div>
-      </header>
 
-      {/* Main Container */}
-      <div className="app-container">
-        {/* Sidebar - Placeholder for Phase 6+ */}
-        <aside className="sidebar">
+        <nav className="sidebar-nav">
           <div className="sidebar-section">
-            <div className="sidebar-title">Navigation</div>
+            <div className="sidebar-title" style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-md)', letterSpacing: '0.05rem' }}>Navigation</div>
             <div
               className={`sidebar-item ${isHome ? 'active' : ''}`}
               onClick={() => navigate('/')}
-              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 'var(--space-md)', padding: 'var(--space-sm) 0' }}
             >
               <HomeIcon /> Home
             </div>
@@ -76,7 +52,8 @@ export default function Layout({ children, title, sidebarContent }: LayoutProps)
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.5rem',
+                gap: 'var(--space-md)',
+                padding: 'var(--space-sm) 0',
                 color: isSmartArrange ? 'var(--color-primary)' : undefined,
               }}
             >
@@ -90,19 +67,42 @@ export default function Layout({ children, title, sidebarContent }: LayoutProps)
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.5rem',
+                gap: 'var(--space-md)',
+                padding: 'var(--space-sm) 0',
                 color: location.pathname === '/chat' ? 'var(--color-primary)' : undefined,
-                marginTop: '0.25rem'
               }}
             >
               💬 AI Assistant
             </div>
           </div>
           {sidebarContent}
-        </aside>
+        </nav>
 
-        {/* Main Content */}
-        <main className="main-content">{children}</main>
+        <div className="sidebar-footer" style={{ marginTop: 'auto', paddingTop: 'var(--space-xl)' }}>
+          {user && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {user.email}
+              </div>
+              <Button
+                label="Logout"
+                variant="danger"
+                size="sm"
+                onClick={handleLogout}
+              />
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <header className="main-header" style={{ height: '64px', display: 'flex', alignItems: 'center', padding: '0 var(--space-2xl)', borderBottom: '1px solid var(--color-border)', background: 'var(--glass-bg)', backdropFilter: 'blur(var(--glass-blur))' }}>
+           <h2 style={{ margin: 0, fontSize: 'var(--font-size-lg)', fontWeight: 600 }}>
+             {title || 'Knowledge Management'}
+           </h2>
+        </header>
+        <main className="main-content" style={{ overflowY: 'auto' }}>{children}</main>
       </div>
     </div>
   );

@@ -92,7 +92,7 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
         AND (
           c.title ILIKE $2
           OR t.name ILIKE $2
-          OR LEFT(c.extracted_text, 500) ILIKE $2
+          OR c.extracted_text ILIKE $2
         )
       ORDER BY c.created_at DESC
       LIMIT 50

@@ -4,6 +4,7 @@ import SourceLink from './SourceLink';
 import SocialLinkPreview from './cardPreviews/SocialLinkPreview';
 import PdfPreview from './cardPreviews/PdfPreview';
 import DocxPreview from './cardPreviews/DocxPreview';
+import RelatedCardsPanel from './RelatedCardsPanel';
 import { LinkIcon, DocumentIcon, FileIcon, TrashIcon } from './icons';
 
 interface CardTag {
@@ -189,6 +190,11 @@ export default function Card({
             ))}
           </div>
         )}
+
+        <RelatedCardsPanel 
+          cardId={cardData.id} 
+          onCardClick={(id) => onClick?.(id)} 
+        />
       </div>
     );
   }

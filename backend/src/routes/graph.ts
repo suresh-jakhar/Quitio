@@ -39,13 +39,20 @@ router.post('/build', async (req: AuthRequest, res: Response, next: NextFunction
  */
 router.get('/neighbors/:cardId', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const { cardId } = req.params;
+    const { cardId } = req.params as { cardId: string };
     const { depth = 2, limit = 10 } = req.query;
+
+    // Validate UUID format to prevent arbitrary strings reaching ML service
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (typeof cardId !== 'string' || !UUID_REGEX.test(cardId)) {
+      return res.status(400).json({ code: 400, message: 'Invalid card ID format' });
+    }
     
     console.log(`[Backend] Fetching neighbors for card ${cardId} (depth: ${depth})...`);
     
     const response = await axios.get(`${ML_SERVICE_URL}/graph/neighbors/${cardId}`, {
-      params: { depth, limit }
+      params: { depth, limit },
+      timeout: 15000,
     });
     
     return res.status(200).json(response.data);

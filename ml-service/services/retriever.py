@@ -12,7 +12,7 @@ class Retriever:
         self.graph_query = graph_query
         self.embed_service = embed_service
 
-    def retrieve_context(self, query: str, user_id: str, top_k: int = 5) -> List[Dict[str, Any]]:
+    async def retrieve_context(self, query: str, user_id: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """
         Retrieve relevant cards using a combination of hybrid search and graph traversal.
         """
@@ -23,9 +23,7 @@ class Retriever:
             query_embedding = self.embed_service.embed_text(query)
             
             # 2. Hybrid search for initial seeds
-            # We use the smart_search/search_with_graph logic here or similar
-            # Since search_with_graph already does hybrid + graph expansion, we can leverage it
-            seeds = self.graph_query.search_with_graph(
+            seeds = await self.graph_query.search_with_graph(
                 query_embedding=query_embedding,
                 user_id=user_id,
                 vector_store=self.vector_store,
@@ -33,21 +31,16 @@ class Retriever:
                 query_text=query
             )
             
-            # 3. Further expand or just use the enriched seeds
-            # search_with_graph already does graph expansion (expansion_depth=2)
-            # So these seeds are already graph-augmented.
-            
-            # We need the full text for these cards to pass to the LLM
-            # search_with_graph only returns title and content_type by default in _enrich_card_details
-            # Let's fetch the full extracted_text for these cards
-            
+            # 3. Fetch full card details for LLM context
             card_ids = [s['id'] for s in seeds]
-            full_cards = self.vector_store.get_cards(card_ids)
+            full_cards = await self.vector_store.get_cards(card_ids)
             
-            # Merge the similarity scores back
-            score_map = {s['id']: s['similarity'] for s in seeds}
+            # Merge similarity scores and origin
+            score_map = {s['id']: (s['similarity'], s.get('origin')) for s in seeds}
             for card in full_cards:
-                card['similarity'] = score_map.get(card['id'], 0.0)
+                score, origin = score_map.get(card['id'], (0.0, None))
+                card['similarity'] = score
+                card['origin'] = origin
             
             # Sort by similarity
             full_cards.sort(key=lambda x: x['similarity'], reverse=True)

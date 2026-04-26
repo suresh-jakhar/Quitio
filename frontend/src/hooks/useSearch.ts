@@ -74,7 +74,7 @@ export default function useSearch(
     },
     // Re-create only when tag filter changes (ensures stale closure is avoided)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(tagIds), filterMode, isSemantic]
+    [tagIds ? [...tagIds].sort().join(',') : '', filterMode, isSemantic]
   );
 
   const handleQueryChange = useCallback(

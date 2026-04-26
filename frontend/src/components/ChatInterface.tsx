@@ -10,6 +10,8 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   contextCount?: number;
+  citations?: any[];
+  isMultiHop?: boolean;
 }
 
 const ChatInterface: React.FC = () => {
@@ -21,6 +23,7 @@ const ChatInterface: React.FC = () => {
     }
   ]);
   const [inputValue, setInputValue] = useState('');
+  const [deepMode, setDeepMode] = useState(false);
   const { queryRag, loading, error } = useRAGQuery();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -48,14 +51,17 @@ const ChatInterface: React.FC = () => {
     setMessages(prev => [...prev, userMsg]);
 
     // Query RAG
-    const response = await queryRag(userQuery);
+    const response = await queryRag(userQuery, 5, deepMode);
 
     if (response) {
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: response.answer,
-        contextCount: response.context_count
+        contextCount: response.context_count,
+        citations: response.citations?.card_details || [],
+        // @ts-ignore - isMultiHop might be in response
+        isMultiHop: response.is_multi_hop
       };
       setMessages(prev => [...prev, assistantMsg]);
     }
@@ -63,6 +69,57 @@ const ChatInterface: React.FC = () => {
 
   return (
     <div className="chat-container">
+      {/* Header with Toggle */}
+      <div style={{ 
+        padding: 'var(--space-sm) var(--space-xl)', 
+        borderBottom: '1px solid var(--color-border)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: '#f8fafc'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ 
+            width: '8px', 
+            height: '8px', 
+            borderRadius: '50%', 
+            backgroundColor: loading ? 'var(--color-warning)' : 'var(--color-success)' 
+          }} />
+          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+            {loading ? 'AI IS THINKING' : 'AI READY'}
+          </span>
+        </div>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input 
+              type="checkbox" 
+              checked={deepMode} 
+              onChange={(e) => setDeepMode(e.target.checked)}
+              style={{ cursor: 'pointer' }}
+            />
+            <span style={{ fontSize: '11px', fontWeight: 700, color: deepMode ? 'var(--color-primary)' : 'var(--color-text-secondary)', letterSpacing: '0.05em' }}>
+              DEEP MODE
+            </span>
+          </label>
+
+          <button 
+            onClick={() => setMessages([{ id: 'welcome', role: 'assistant', content: 'Hello! How can I help you today?' }])}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '11px',
+              fontWeight: 700,
+              color: 'var(--color-danger)',
+              cursor: 'pointer',
+              letterSpacing: '0.05em'
+            }}
+          >
+            CLEAR CHAT
+          </button>
+        </div>
+      </div>
+
       {/* Messages Area */}
       <div className="chat-messages">
         {messages.map(msg => (
@@ -71,13 +128,14 @@ const ChatInterface: React.FC = () => {
             role={msg.role} 
             content={msg.content} 
             contextCount={msg.contextCount}
+            citations={msg.citations}
           />
         ))}
         {loading && (
           <div className="chat-message-assistant">
             <div className="chat-typing-indicator">
               <Spinner size="sm" />
-              <span>QUITIO is thinking...</span>
+              <span>{deepMode ? 'QUITIO is performing multi-hop reasoning...' : 'QUITIO is thinking...'}</span>
             </div>
           </div>
         )}
@@ -86,33 +144,27 @@ const ChatInterface: React.FC = () => {
 
       {/* Input Area */}
       <div className="chat-input-area">
-        <form onSubmit={handleSend} style={{ display: 'flex', gap: 'var(--space-md)' }}>
-          <div style={{ flex: 1 }}>
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Ask a question about your knowledge..."
-              style={{
-                width: '100%',
-                padding: 'var(--space-sm) var(--space-md)',
-                borderRadius: 'var(--border-radius-md)',
-                border: '1px solid var(--color-border)',
-                fontSize: 'var(--font-size-sm)',
-                outline: 'none'
-              }}
-              disabled={loading}
+        <form onSubmit={handleSend} className="chat-form">
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder={deepMode ? "Ask a complex question..." : "Type your question here..."}
+            className="input-field"
+            disabled={loading}
+          />
+          <div style={{ width: '120px' }}>
+            <Button 
+              label={loading ? '...' : 'Ask AI'} 
+              variant="primary" 
+              type="submit" 
+              disabled={!inputValue.trim() || loading}
+              block
             />
           </div>
-          <Button 
-            label="Ask AI" 
-            variant="primary" 
-            type="submit" 
-            disabled={!inputValue.trim() || loading}
-          />
         </form>
         {error && (
-          <p style={{ marginTop: 'var(--space-xs)', color: 'var(--color-error)', fontSize: 'var(--font-size-xs)', textAlign: 'center' }}>
+          <p className="input-error" style={{ marginTop: 'var(--space-sm)', textAlign: 'center' }}>
             {error}
           </p>
         )}

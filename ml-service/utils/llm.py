@@ -36,8 +36,34 @@ class LLMService:
                 self.client = None
 
     async def _call_hf(self, prompt: str, system_prompt: str, is_json: bool = False) -> Optional[str]:
-        # ... (rest of method unchanged)
-        pass
+        """
+        Fallback to Hugging Face Inference API when Groq is blocked or rate-limited.
+        Requires `hf_auth` env var set to a valid HF token.
+        """
+        if not self.hf_token:
+            logger.warning("[LLM-HF] hf_auth token not set — HF fallback unavailable.")
+            return None
+        import requests as req
+        api_url = f"https://api-inference.huggingface.co/models/{self.hf_model}"
+        headers = {"Authorization": f"Bearer {self.hf_token}"}
+        payload = {
+            "inputs": f"<s>[INST] <<SYS>>\n{system_prompt}\n<</SYS>>\n\n{prompt} [/INST]",
+            "parameters": {
+                "max_new_tokens": 200 if not is_json else 300,
+                "temperature": 0.2,
+                "return_full_text": False,
+            }
+        }
+        try:
+            response = req.post(api_url, headers=headers, json=payload, timeout=30)
+            response.raise_for_status()
+            result = response.json()
+            if isinstance(result, list) and result:
+                return result[0].get("generated_text", "").strip()
+            return None
+        except Exception as e:
+            logger.error(f"[LLM-HF] HuggingFace API call failed: {e}")
+            return None
 
     def _generate_cache_key(self, card_ids: List[str]) -> str:
         """Create a stable hash of the cluster content."""

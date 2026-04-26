@@ -20,8 +20,10 @@ const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => 
   try {
     const decoded = verifyJWT(token);
     req.userId = decoded.userId;
+    console.log(`[DEBUG-AUTH] Success: User ${req.userId} for ${req.method} ${req.url}`);
     next();
   } catch (err: any) {
+    console.error(`[DEBUG-AUTH] Failed: ${err.message} for ${req.method} ${req.url}`);
     return res.status(401).json({
       code: 401,
       message: err.message || 'Unauthorized',

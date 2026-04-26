@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 interface RAGResponse {
   query: string;
@@ -13,7 +13,7 @@ export const useRAGQuery = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const queryRag = async (query: string, topK: number = 5): Promise<RAGResponse | null> => {
+  const queryRag = async (query: string, topK: number = 5, multiHop: boolean = false): Promise<RAGResponse | null> => {
     const token = localStorage.getItem('token');
     if (!token) {
       setError('You must be logged in to use the AI assistant.');
@@ -24,10 +24,9 @@ export const useRAGQuery = () => {
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
       const response = await axios.post(
         `${API_URL}/rag/query`,
-        { query, topK },
+        { query, topK, multiHop },
         {
           headers: {
             Authorization: `Bearer ${token}`

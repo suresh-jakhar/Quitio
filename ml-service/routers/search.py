@@ -67,7 +67,7 @@ async def vector_search(
         logger.info(f"[DEBUG-ML] Query embedded successfully.")
 
         # 2. Search for similar cards in the vector store
-        results = vector_store.find_similar_cards(
+        results = await vector_store.find_similar_cards(
             embedding=query_embedding,
             user_id=request.user_id,
             tags=request.tags,
@@ -101,7 +101,7 @@ async def keyword_search(
     try:
         logger.info(f"[DEBUG-ML] Incoming keyword search for user {request.user_id}: \"{request.query}\"")
         
-        results = vector_store.bm25_search(
+        results = await vector_store.bm25_search(
             query=request.query,
             user_id=request.user_id,
             limit=request.top_k
@@ -191,14 +191,14 @@ async def hybrid_search(
         
         # 1. Get Vector Results
         query_embedding = embed_service.embed_text(request.query)
-        vector_results = vector_store.find_similar_cards(
+        vector_results = await vector_store.find_similar_cards(
             embedding=query_embedding,
             user_id=request.user_id,
             limit=request.top_k * 2 # Get more to allow better merging
         )
         
         # 2. Get Keyword Results
-        keyword_results = vector_store.bm25_search(
+        keyword_results = await vector_store.bm25_search(
             query=request.query,
             user_id=request.user_id,
             limit=request.top_k * 2
@@ -223,6 +223,7 @@ async def hybrid_search(
     except Exception as e:
         logger.error(f"Hybrid search endpoint error: {e}")
         raise HTTPException(status_code=500, detail="Hybrid search failed.")
+
 @router.post("/smart", response_model=SearchResponse)
 async def smart_search(
     request: VectorSearchRequest,
@@ -241,7 +242,7 @@ async def smart_search(
         query_embedding = embed_service.embed_text(request.query)
         
         # 2. Use Query Engine for expansion and re-ranking
-        results = query_service.search_with_graph(
+        results = await query_service.search_with_graph(
             query_embedding=query_embedding,
             user_id=request.user_id,
             vector_store=vector_store,

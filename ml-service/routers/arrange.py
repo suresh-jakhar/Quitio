@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional, Set, Any
 import logging
 import random
 import re
@@ -67,7 +67,8 @@ class ArrangedCard(BaseModel):
     content_type: str
     extracted_text: Optional[str] = None
     metadata: Optional[dict] = None
-    tags: List[dict] = []
+    # Tags come from array_agg(t.name) — plain strings, not dicts
+    tags: List[Any] = []
     relevance_score: float
     appears_in_clusters: List[str] = []
 
@@ -94,12 +95,11 @@ async def smart_arrange(
     """
     overall_start = time.time()
     logger.info(f"[SmartArrange] Request started for user {request.user_id}")
-    
 
     try:
         # 1. Fetch Cards
         fetch_start = time.time()
-        cards = vector_store.get_user_cards(request.user_id)
+        cards = await vector_store.get_user_cards(request.user_id)
         if not cards:
             logger.info(f"[SmartArrange] No cards found for user {request.user_id}")
             return {"clusters": []}
@@ -114,11 +114,11 @@ async def smart_arrange(
         # STRONG REFRESH LOGIC
         if request.force_refresh:
             logger.info(f"[DEBUG-ML] [Force Refresh] Deleting existing graph for user {request.user_id}")
-            graph_builder.graph_store.delete_user_edges(request.user_id)
+            await graph_builder.graph_store.delete_user_edges(request.user_id)
             to_enrich = cards # Enrich ALL cards
         elif request.force_rebuild_graph:
             logger.info(f"[DEBUG-ML] [Force Rebuild] Deleting existing graph for user {request.user_id}")
-            graph_builder.graph_store.delete_user_edges(request.user_id)
+            await graph_builder.graph_store.delete_user_edges(request.user_id)
             to_enrich = [c for c in cards if not c.get("semantic_metadata")]
         else:
             to_enrich = [c for c in cards if not c.get("semantic_metadata")]
@@ -131,16 +131,16 @@ async def smart_arrange(
                 logger.debug(f"[DEBUG-ML] Processing batch of {len(batch)} cards")
                 await asyncio.gather(*[semantic_enricher.enrich_card(c["id"], c.get("title", ""), c.get("extracted_text", "")) for c in batch])
             # Refresh cards
-            cards = vector_store.get_user_cards(request.user_id)
+            cards = await vector_store.get_user_cards(request.user_id)
             card_map = {c["id"]: c for c in cards}
             logger.info(f"[DEBUG-ML] Enrichment completed in {time.time() - enrich_start:.4f}s")
         else:
             logger.info(f"[DEBUG-ML] [2/6] All {len(cards)} cards already enriched. Skipping.")
 
         # 3. Graph Retrieval
-        if request.force_refresh or request.force_rebuild_graph:
+        if request.force_refresh or request.force_rebuild_graph or (await graph_builder.graph_store.count_user_edges(request.user_id)) == 0:
             logger.info(f"[DEBUG-ML] Rebuilding graph edges for user {request.user_id}...")
-            graph_builder.build_user_graph(request.user_id)
+            await graph_builder.build_user_graph(request.user_id)
 
         graph_start = time.time()
         adjacency, edges_count = await graph_builder.get_user_graph(request.user_id, card_ids)
@@ -198,11 +198,13 @@ async def smart_arrange(
                     G.add_edge(src, tgt, weight=weight)
             
             # 5. Dynamic Semantic Merging (Hierarchical Refinement)
-            communities = list(nx.algorithms.community.louvain_communities(G, weight='weight', resolution=0.2))
+            communities = list(nx.algorithms.community.louvain_communities(
+                G, weight='weight', resolution=request.resolution
+            ))
             logger.info(f"[DEBUG-ML] Initial Louvain count: {len(communities)}")
             
-            final_communities = communities
-            if len(communities) > 1:
+            final_communities = [list(c) for c in communities]
+            if len(final_communities) > 1:
                 logger.info(f"[DEBUG-ML] [5/6] Performing maximum thematic consolidation...")
                 
                 merged = True
@@ -236,7 +238,7 @@ async def smart_arrange(
                             i2 = set([str(m.get("intent")).lower() for m in m2 if m.get("intent")])
                             if i1 & i2: sim += 0.05
                             
-                            # Entity overlap bonus (Phase 5 refinement)
+                            # Entity overlap bonus
                             e1 = set([str(e).lower().replace('_', ' ') for m in m1 for e in m.get("entities", [])])
                             e2 = set([str(e).lower().replace('_', ' ') for m in m2 for e in m.get("entities", [])])
                             if e1 & e2:
@@ -279,9 +281,7 @@ async def smart_arrange(
                     })
                 
                 try:
-                    name = await asyncio.wait_for(llm_service.generate_cluster_name(list(comm)[:10], rep_data), timeout=4.0)
-                    if name:
-                        logger.debug(f"LLM Name for cluster {idx}: {name}")
+                    name = await asyncio.wait_for(llm_service.generate_cluster_name(list(comm)[:10], rep_data), timeout=5.0)
                 except Exception as e:
                     logger.warning(f"Naming timeout/error for cluster {idx}: {e}")
                     name = None
@@ -302,10 +302,12 @@ async def smart_arrange(
         logger.info(f"[DEBUG-ML] [6/6] Mapping clusters to response schema...")
         rows = []
         for i, (comm, name) in enumerate(zip(final_communities, cluster_names)):
-            centroid = np.mean([card_map[cid]["embedding"] for cid in comm], axis=0)
+            # Calculate centroid for relevance scoring
+            centroid = np.mean([card_map[cid]["embedding"] for cid in comm if cid in card_map], axis=0)
             
             arranged_cards = []
             for cid in comm:
+                if cid not in card_map: continue
                 c = card_map[cid]
                 emb = np.array(c["embedding"])
                 rel = np.dot(centroid, emb) / (np.linalg.norm(centroid) * np.linalg.norm(emb) + 1e-9)
@@ -334,3 +336,4 @@ async def smart_arrange(
         import traceback
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
+

@@ -23,14 +23,18 @@ async def lifespan(app: FastAPI):
     try:
         loader = ModelLoader(model_name=config.MODEL_NAME, device=config.MODEL_DEVICE)
         loader.load_model()
+        logger.info("Embedding model loaded successfully.")
         
-        # Initialize vector index
+        # Initialize vector index (adds pgvector columns/indexes)
         db_service = DBService()
         vector_store = VectorStore(db_service)
-        vector_store.init_index()
+        await vector_store.init_index()
+        logger.info("Database index initialized successfully.")
     except Exception as e:
-        logger.error(f"Critical error during startup: {e}")
-        # In production, you might want to exit here
+        logger.critical(f"FATAL: ML service startup failed: {e}")
+        # Re-raise so uvicorn reports the failure clearly instead of
+        # running a service where every embed/search call will crash.
+        raise RuntimeError(f"ML service startup failed: {e}") from e
         
     yield
     # Shutdown logic
@@ -58,7 +62,7 @@ async def add_process_time_header(request: Request, call_next):
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[config.BACKEND_URL, "http://localhost:3000", "http://localhost:3001"],
+    allow_origins=[config.BACKEND_URL],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -23,7 +23,6 @@ function App(): JSX.Element {
               </ProtectedRoute>
             }
           />
-          <Route path="*" element={<Navigate to="/" replace />} />
           <Route
             path="/smart-arrange"
             element={
@@ -40,6 +39,8 @@ function App(): JSX.Element {
               </ProtectedRoute>
             }
           />
+          {/* Catch-all must be last */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
     </ErrorBoundary>

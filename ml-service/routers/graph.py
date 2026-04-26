@@ -73,7 +73,7 @@ async def get_neighbors(
     """
     try:
         logger.info(f"Fetching neighbors for card {card_id} with depth {depth}")
-        neighbors = query_service.get_neighbors(card_id, depth=depth, limit=limit)
+        neighbors = await query_service.get_neighbors(card_id, depth=depth, limit=limit)
         
         return {
             "source_card_id": card_id,
@@ -114,7 +114,7 @@ async def delete_card_edges(
     Removes a card and its associated edges from the knowledge graph.
     """
     try:
-        builder.graph_store.delete_card_edges(card_id)
+        await builder.graph_store.delete_card_edges(card_id)
         return {"status": "success", "message": f"Edges for card {card_id} deleted"}
     except Exception as e:
         logger.error(f"Error deleting card edges: {e}")

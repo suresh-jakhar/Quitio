@@ -356,12 +356,13 @@ export const createCard = async (userId: string, data: CreateCardDTO): Promise<C
     await addTagsToCard(userId, cardId, data.tags);
   }
 
-  // Trigger embedding generation in background
+  // Trigger embedding generation in background (fire-and-forget)
   if (card.extracted_text) {
-    // We don't await this to keep response time fast
-    generateAndStoreEmbedding(cardId, card.extracted_text).then(() => {
-      triggerIncrementalGraphUpdate(cardId, userId);
-    });
+    generateAndStoreEmbedding(cardId, card.extracted_text)
+      .then(() => triggerIncrementalGraphUpdate(cardId, userId))
+      .catch((err) =>
+        console.error(`[CardService] Background embedding failed for card ${cardId}: ${err.message}`)
+      );
   }
 
   return card;
@@ -424,39 +425,52 @@ export const updateCard = async (
 
 
 /**
- * Add tags to a card
+ * Add tags to a card (Batched to prevent N+1 queries)
  */
 export const addTagsToCard = async (userId: string, cardId: string, tagNames: string[]): Promise<void> => {
-  for (const tagName of tagNames) {
-    // Get or create tag
-    let tagResult = await pool.query('SELECT id FROM tags WHERE user_id = $1 AND name = $2', [
-      userId,
-      tagName,
-    ]);
+  if (!tagNames || tagNames.length === 0) return;
 
-    let tagId: string;
-    if (tagResult.rows.length === 0) {
-      tagId = uuidv4();
-      await pool.query(
-        'INSERT INTO tags (id, user_id, name, created_at) VALUES ($1, $2, $3, NOW())',
-        [tagId, userId, tagName]
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const tagIds: string[] = [];
+
+    for (const tagName of tagNames) {
+      const trimmed = tagName.trim();
+      if (!trimmed) continue;
+
+      // Upsert tag
+      const tagRes = await client.query(
+        `INSERT INTO tags (id, user_id, name, created_at)
+         VALUES (gen_random_uuid(), $1, $2, NOW())
+         ON CONFLICT (user_id, name) DO UPDATE SET name = EXCLUDED.name
+         RETURNING id`,
+        [userId, trimmed]
       );
-    } else {
-      tagId = tagResult.rows[0].id;
+      tagIds.push(tagRes.rows[0].id);
     }
 
-    // Add card-tag association
-    try {
-      await pool.query(
-        'INSERT INTO card_tags (card_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [cardId, tagId]
+    // Batch link tags to card
+    if (tagIds.length > 0) {
+      // Build a multi-row insert for efficiency
+      const placeholders = tagIds.map((_, i) => `($1, $${i + 2})`).join(', ');
+      await client.query(
+        `INSERT INTO card_tags (card_id, tag_id) VALUES ${placeholders} ON CONFLICT DO NOTHING`,
+        [cardId, ...tagIds]
       );
-    } catch (err) {
-      // Ignore duplicate key error
     }
+
+    await client.query('COMMIT');
+    // Trigger incremental graph update after adding tags (boosts edges)
+    triggerIncrementalGraphUpdate(cardId, userId);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(`[CardService] Failed to add tags to card ${cardId}:`, err);
+    throw err;
+  } finally {
+    client.release();
   }
-  // Trigger incremental graph update after adding tags (boosts edges)
-  triggerIncrementalGraphUpdate(cardId, userId);
 };
 
 /**
@@ -514,26 +528,32 @@ export const setCardTags = async (
       [cardId]
     );
 
-    // 2. For each tag name: get-or-create the tag, then link it
-    for (const name of tagNames) {
-      const trimmed = name.trim();
-      if (!trimmed) continue;
+    // 2. Filter and normalize tag names
+    const uniqueTagNames = [...new Set(tagNames.map(t => t.trim()).filter(Boolean))];
+    if (uniqueTagNames.length === 0) {
+      await client.query('COMMIT');
+      return;
+    }
 
-      // Upsert tag
+    // 3. Upsert tags and collect IDs
+    const tagIds: string[] = [];
+    for (const name of uniqueTagNames) {
       const tagRes = await client.query(
         `INSERT INTO tags (id, user_id, name, created_at)
          VALUES (gen_random_uuid(), $1, $2, NOW())
          ON CONFLICT (user_id, name) DO UPDATE SET name = EXCLUDED.name
          RETURNING id`,
-        [userId, trimmed]
+        [userId, name]
       );
-      const tagId = tagRes.rows[0].id;
+      tagIds.push(tagRes.rows[0].id);
+    }
 
-      // Link tag to card
+    // 4. Batch link tags to card
+    if (tagIds.length > 0) {
+      const placeholders = tagIds.map((_, i) => `($1, $${i + 2})`).join(', ');
       await client.query(
-        `INSERT INTO card_tags (card_id, tag_id) VALUES ($1, $2)
-         ON CONFLICT DO NOTHING`,
-        [cardId, tagId]
+        `INSERT INTO card_tags (card_id, tag_id) VALUES ${placeholders} ON CONFLICT DO NOTHING`,
+        [cardId, ...tagIds]
       );
     }
 
@@ -542,6 +562,7 @@ export const setCardTags = async (
     triggerIncrementalGraphUpdate(cardId, userId);
   } catch (err) {
     await client.query('ROLLBACK');
+    console.error(`[CardService] Failed to set tags for card ${cardId}:`, err);
     throw err;
   } finally {
     client.release();
@@ -573,7 +594,7 @@ export const createPdfCard = async (
     title: extractSmartTitle(cleanedText, data.originalName, extraction.metadata.title),
     content_type: 'pdf',
     raw_content: data.originalName,
-    extracted_text: extraction.text.replace(/\s+/g, ' ').trim(), // Clean text
+    extracted_text: cleanedText,
     metadata: {
       page_count: extraction.page_count,
       author: extraction.metadata.author,
